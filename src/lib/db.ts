@@ -1,18 +1,5 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "Por favor define la variable de entorno MONGODB_URI en .env.local"
-  );
-}
-
-/**
- * Global is used here to maintain a cached connection across hot reloads
- * in development. This prevents connections growing exponentially
- * during API Route usage.
- */
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -23,7 +10,7 @@ declare global {
   var mongoose: MongooseCache | undefined;
 }
 
-let cached: MongooseCache = global.mongoose || { conn: null, promise: null };
+const cached: MongooseCache = global.mongoose || { conn: null, promise: null };
 
 if (!global.mongoose) {
   global.mongoose = cached;
@@ -34,15 +21,20 @@ async function dbConnect(): Promise<typeof mongoose> {
     return cached.conn;
   }
 
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error(
+      "MONGODB_URI no está configurado. En Vercel: Settings → Environment Variables. En local: .env.local"
+    );
+  }
 
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-      console.log("✅ Conectado a MongoDB");
-      return mongoose;
-    });
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(uri, { bufferCommands: false })
+      .then((m) => {
+        console.log("✅ Conectado a MongoDB");
+        return m;
+      });
   }
 
   try {
