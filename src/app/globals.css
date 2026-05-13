@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-sans:    var(--font-figtree), system-ui, sans-serif;
+  --font-heading: var(--font-barlow), "Barlow Semi Condensed", system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains), "JetBrains Mono", monospace;
+
+  /* ── Color system — OKLCH amber-on-navy ─────────────────── */
+  /* Backgrounds (darkest → lightest) */
+  --color-sidebar:    oklch(0.090 0.018 232);   /* sidebar panel    */
+  --color-background: oklch(0.115 0.016 232);   /* page bg          */
+  --color-surface:    oklch(0.155 0.016 232);   /* topbar / sidebar */
+  --color-card:       oklch(0.155 0.016 232);   /* card / panel     */
+  --color-popover:    oklch(0.130 0.016 232);   /* dropdown         */
+
+  /* Foregrounds */
+  --color-foreground:          oklch(0.950 0.006 232);
+  --color-card-foreground:     oklch(0.950 0.006 232);
+  --color-popover-foreground:  oklch(0.950 0.006 232);
+
+  /* Primary — warm amber */
+  --color-primary:             oklch(0.720 0.155 54);
+  --color-primary-foreground:  oklch(0.140 0.030 54);
+
+  /* Secondary & muted */
+  --color-secondary:           oklch(0.190 0.016 232);
+  --color-secondary-foreground:oklch(0.950 0.006 232);
+  --color-muted:               oklch(0.180 0.016 232);
+  --color-muted-foreground:    oklch(0.570 0.012 232);
+  --color-accent:              oklch(0.200 0.016 232);
+  --color-accent-foreground:   oklch(0.950 0.006 232);
+
+  /* Semantic */
+  --color-destructive:         oklch(0.580 0.205 15);
+  --color-destructive-foreground: oklch(0.960 0.004 0);
+
+  /* Borders / inputs */
+  --color-border: oklch(0.220 0.016 232);
+  --color-input:  oklch(0.220 0.016 232);
+  --color-ring:   oklch(0.720 0.155 54);  /* amber focus ring */
+
+  /* Radius */
+  --radius: 0.375rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Status dot utilities ───────────────────────────────── */
+  .status-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: oklch(0.115 0.016 232); }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.240 0.016 232);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover { background: oklch(0.720 0.155 54); }
+
+/* ── Drag & drop ─────────────────────────────────────────── */
+.dragging { opacity: 0.5; transform: scale(1.02); }
+.drop-target { outline: 2px solid var(--color-primary); outline-offset: 2px; }
