@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import { FENInvoice, InvoiceSync } from "@/models";
-import { scrapeFENInvoices } from "@/lib/scrapers/fen";
-import { scrapersEnabled, SCRAPER_DISABLED_MESSAGE } from "@/lib/runtime-env";
+import { scrapeFENInvoices } from "@/lib/scrapers/fen-http";
 
 export const maxDuration = 300;
 
@@ -16,13 +15,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "No autorizado" },
         { status: 403 }
-      );
-    }
-
-    if (!scrapersEnabled()) {
-      return NextResponse.json(
-        { success: false, error: SCRAPER_DISABLED_MESSAGE },
-        { status: 503 }
       );
     }
 
