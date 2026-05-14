@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingPage } from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  Plug,
+  Unplug,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 
@@ -48,6 +51,14 @@ interface FENInvoiceWithSync {
     error?: string;
     attempts: number;
   };
+}
+
+interface QBOStatus {
+  connected: boolean;
+  realmId?: string;
+  environment?: "sandbox" | "production";
+  connectedAt?: string;
+  refreshExpired?: boolean;
 }
 
 const STATUS_META: Record<
@@ -81,14 +92,46 @@ function formatDate(d: string): string {
   });
 }
 
-export default function ContabilidadPage() {
+function ContabilidadInner() {
+  const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<FENInvoiceWithSync[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isScraping, setIsScraping] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [qboStatus, setQboStatus] = useState<QBOStatus | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [monthsBack, setMonthsBack] = useState<string>("1");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  // Detectar callback redirect (?qbo=connected|state-mismatch|...)
+  useEffect(() => {
+    const qboParam = searchParams.get("qbo");
+    if (!qboParam) return;
+
+    if (qboParam === "connected") {
+      toast({ title: "QBO conectado", description: "Conexión exitosa con QuickBooks Online" });
+    } else if (qboParam === "state-mismatch") {
+      toast({ title: "Error CSRF", description: "State mismatch en OAuth", variant: "destructive" });
+    } else if (qboParam.startsWith("exchange-failed")) {
+      toast({ title: "Error OAuth", description: decodeURIComponent(qboParam), variant: "destructive" });
+    } else {
+      toast({ title: "QBO callback", description: qboParam, variant: "destructive" });
+    }
+
+    // Limpiar query param
+    window.history.replaceState({}, "", "/contabilidad");
+  }, [searchParams, toast]);
+
+  const fetchQboStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contabilidad/qbo/status");
+      const json = await res.json();
+      if (json.success) setQboStatus(json.data);
+    } catch {
+      setQboStatus({ connected: false });
+    }
+  }, []);
 
   const fetchInvoices = useCallback(async () => {
     setIsLoading(true);
@@ -106,7 +149,8 @@ export default function ContabilidadPage() {
 
   useEffect(() => {
     fetchInvoices();
-  }, [fetchInvoices]);
+    fetchQboStatus();
+  }, [fetchInvoices, fetchQboStatus]);
 
   const handleScrape = async () => {
     setIsScraping(true);
@@ -124,10 +168,10 @@ export default function ContabilidadPage() {
       } else {
         toast({
           title: "Error al scrapear",
-          description: json.error + (json.debug ? `\n\nDebug: ${json.debug.slice(-5).join(" | ")}` : ""),
+          description: json.error,
           variant: "destructive",
         });
-        console.error("FEN scrape debug:", json.debug);
+        if (json.debug) console.error("FEN scrape debug:", json.debug);
       }
     } catch (e) {
       toast({
@@ -137,6 +181,31 @@ export default function ContabilidadPage() {
       });
     } finally {
       setIsScraping(false);
+    }
+  };
+
+  const handleConnect = () => {
+    window.location.href = "/api/contabilidad/qbo/connect";
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("¿Desconectar QBO? Tendrás que reautorizar para volver a sincronizar.")) return;
+
+    try {
+      const res = await fetch("/api/contabilidad/qbo/disconnect", { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        toast({ title: "QBO desconectado" });
+        fetchQboStatus();
+      } else {
+        toast({ title: "Error", description: json.error, variant: "destructive" });
+      }
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Error",
+        variant: "destructive",
+      });
     }
   };
 
@@ -165,11 +234,49 @@ export default function ContabilidadPage() {
       toast({ title: "Sin selección", description: "Selecciona facturas pendientes" });
       return;
     }
-    toast({
-      title: "QBO no conectado aún",
-      description: "Próximo paso: conectar OAuth con QBO antes de sincronizar.",
-      variant: "destructive",
-    });
+    if (!qboStatus?.connected) {
+      toast({
+        title: "QBO no conectado",
+        description: "Conecta QuickBooks Online primero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm(`¿Enviar ${selected.size} factura(s) a QuickBooks Online?`)) return;
+
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/contabilidad/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceIds: Array.from(selected) }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast({
+          title: "Sync completo",
+          description: `${json.data.synced} sincronizadas · ${json.data.failed} fallidas`,
+          variant: json.data.failed > 0 ? "destructive" : "default",
+        });
+        setSelected(new Set());
+        fetchInvoices();
+      } else {
+        toast({
+          title: "Error",
+          description: json.error,
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const stats = useMemo(() => {
@@ -201,7 +308,7 @@ export default function ContabilidadPage() {
             )}
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
           <Select value={monthsBack} onValueChange={setMonthsBack}>
             <SelectTrigger className="w-[120px] h-8 text-xs">
               <SelectValue />
@@ -221,16 +328,37 @@ export default function ContabilidadPage() {
             className="h-8 text-xs"
           >
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScraping ? "animate-spin" : ""}`} />
-            {isScraping ? "Scrapeando FEN..." : "Scrape FEN"}
+            {isScraping ? "Scrapeando..." : "Scrape FEN"}
           </Button>
+          {qboStatus?.connected ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              className="h-8 text-xs"
+            >
+              <Unplug className="mr-1.5 h-3.5 w-3.5" />
+              Desconectar QBO
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleConnect}
+              className="h-8 text-xs"
+            >
+              <Plug className="mr-1.5 h-3.5 w-3.5" />
+              Conectar QBO
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={handleSync}
-            disabled={selected.size === 0}
+            disabled={selected.size === 0 || isSyncing || !qboStatus?.connected}
             className="h-8 text-xs"
           >
-            <Send className="mr-1.5 h-3.5 w-3.5" />
-            Enviar a QBO ({selected.size})
+            <Send className={`mr-1.5 h-3.5 w-3.5 ${isSyncing ? "animate-pulse" : ""}`} />
+            {isSyncing ? "Enviando..." : `Enviar a QBO (${selected.size})`}
           </Button>
         </div>
       </div>
@@ -274,7 +402,6 @@ export default function ContabilidadPage() {
           className="rounded-lg overflow-hidden"
           style={{ backgroundColor: "var(--color-surface)" }}
         >
-          {/* Table header */}
           <div className="grid grid-cols-[40px_90px_100px_1fr_130px_120px_130px_120px] border-b border-border">
             <div className="px-3 py-2.5 flex items-center">
               <input
@@ -297,7 +424,6 @@ export default function ContabilidadPage() {
             ))}
           </div>
 
-          {/* Rows */}
           <div className="divide-y divide-border">
             {invoices.map((inv, i) => {
               const meta = STATUS_META[inv.sync.status];
@@ -366,6 +492,11 @@ export default function ContabilidadPage() {
                         {meta.label}
                       </span>
                     </div>
+                    {inv.sync.qboInvoiceNumber && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        QBO #{inv.sync.qboInvoiceNumber}
+                      </div>
+                    )}
                     {inv.sync.error && (
                       <div className="flex items-center gap-1 mt-0.5">
                         <AlertCircle className="h-3 w-3 text-red-400" />
@@ -394,12 +525,29 @@ export default function ContabilidadPage() {
               {invoices.length} facturas · {selected.size} seleccionadas
             </p>
             <p className="text-[11px] text-muted-foreground">
-              QBO: <span className="text-yellow-400">no conectado</span>
+              QBO:{" "}
+              {qboStatus?.connected ? (
+                <span className="text-emerald-400">
+                  conectado ({qboStatus.environment})
+                </span>
+              ) : qboStatus?.refreshExpired ? (
+                <span className="text-red-400">expirado — reconecta</span>
+              ) : (
+                <span className="text-yellow-400">no conectado</span>
+              )}
             </p>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function ContabilidadPage() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <ContabilidadInner />
+    </Suspense>
   );
 }
 
