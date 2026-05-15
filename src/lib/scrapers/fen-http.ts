@@ -287,11 +287,16 @@ function hasNextPage(html: string, currentPage: number): boolean {
 }
 
 export async function scrapeFENInvoices(
-  opts: { monthsBack?: number; enrichDetail?: boolean } = {}
+  opts: {
+    monthsBack?: number;
+    enrichDetail?: boolean;
+    skipDetailFor?: Set<string>;
+  } = {}
 ): Promise<FENScrapeResult> {
   const debug: string[] = [];
   const monthsBack = opts.monthsBack ?? 1;
   const enrichDetail = opts.enrichDetail ?? true;
+  const skipDetailFor = opts.skipDetailFor ?? new Set<string>();
   const maxPages = 200;
 
   try {
@@ -340,8 +345,13 @@ export async function scrapeFENInvoices(
 
     if (enrichDetail) {
       let enriched = 0;
+      let skipped = 0;
       for (const inv of all) {
         if (inv.anulado || !inv.xmlCod) continue;
+        if (skipDetailFor.has(inv.fenId)) {
+          skipped++;
+          continue;
+        }
         try {
           const detail = await scrapeInvoiceDetail(jar, inv.fenId, inv.xmlCod);
           if (detail) {
@@ -359,7 +369,7 @@ export async function scrapeFENInvoices(
           debug.push(`Detail fail ${inv.fenId}: ${e instanceof Error ? e.message : e}`);
         }
       }
-      debug.push(`Enriched: ${enriched}/${all.length}`);
+      debug.push(`Enriched: ${enriched}, skipped (cached): ${skipped}, total: ${all.length}`);
     }
 
     return { success: true, invoices: all, debug };

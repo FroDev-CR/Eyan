@@ -21,8 +21,20 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const monthsBackParam = searchParams.get("monthsBack");
     const monthsBack = monthsBackParam ? Math.max(1, Math.min(12, parseInt(monthsBackParam, 10))) : 1;
+    const force = searchParams.get("force") === "true";
 
-    const result = await scrapeFENInvoices({ monthsBack });
+    await dbConnect();
+
+    const skipDetailFor = new Set<string>();
+    if (!force) {
+      const cached = await FENInvoice.find(
+        { detalleScraped: true },
+        { fenId: 1 }
+      ).lean();
+      for (const c of cached) skipDetailFor.add(c.fenId);
+    }
+
+    const result = await scrapeFENInvoices({ monthsBack, skipDetailFor });
 
     if (!result.success || !result.invoices) {
       return NextResponse.json(
@@ -35,8 +47,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await dbConnect();
-
     let created = 0;
     let updated = 0;
     let pendingSyncs = 0;
@@ -45,32 +55,37 @@ export async function POST(request: NextRequest) {
     for (const inv of result.invoices) {
       try {
         const existing = await FENInvoice.findOne({ fenId: inv.fenId });
+
+        const baseSet: Record<string, unknown> = {
+          xmlCod: inv.xmlCod || "",
+          consecutivo: inv.consecutivo,
+          identification: inv.identification,
+          clienteName: inv.clienteName,
+          fecha: inv.fecha,
+          plazo: inv.plazo,
+          moneda: inv.moneda,
+          medioPago: inv.medioPago,
+          monto: inv.monto,
+          saldo: inv.saldo,
+          estadoHacienda: inv.estadoHacienda,
+          correoEnviado: inv.correoEnviado,
+          anulado: inv.anulado,
+          scrapedAt: new Date(),
+          raw: inv.raw,
+        };
+
+        // Solo overwrite detalle si scraper realmente lo fetcheó
+        if (inv.detalleScraped) {
+          baseSet.observaciones = inv.observaciones || "";
+          baseSet.ordenCompraPrefix = inv.ordenCompraPrefix ?? null;
+          baseSet.ordenCompraNumero = inv.ordenCompraNumero || "";
+          baseSet.subClienteArea = inv.subClienteArea ?? null;
+          baseSet.detalleScraped = true;
+        }
+
         const doc = await FENInvoice.findOneAndUpdate(
           { fenId: inv.fenId },
-          {
-            $set: {
-              xmlCod: inv.xmlCod || "",
-              consecutivo: inv.consecutivo,
-              identification: inv.identification,
-              clienteName: inv.clienteName,
-              fecha: inv.fecha,
-              plazo: inv.plazo,
-              moneda: inv.moneda,
-              medioPago: inv.medioPago,
-              monto: inv.monto,
-              saldo: inv.saldo,
-              estadoHacienda: inv.estadoHacienda,
-              correoEnviado: inv.correoEnviado,
-              anulado: inv.anulado,
-              observaciones: inv.observaciones || "",
-              ordenCompraPrefix: inv.ordenCompraPrefix ?? null,
-              ordenCompraNumero: inv.ordenCompraNumero || "",
-              subClienteArea: inv.subClienteArea ?? null,
-              detalleScraped: inv.detalleScraped,
-              scrapedAt: new Date(),
-              raw: inv.raw,
-            },
-          },
+          { $set: baseSet },
           { upsert: true, new: true }
         );
 
