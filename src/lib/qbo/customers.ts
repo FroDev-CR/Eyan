@@ -27,10 +27,15 @@ interface FindOrCreateOpts {
  *
  * Estrategia:
  * 1. Cache local CustomerSync por (cedula, subClienteArea)
- * 2. Query QBO por Notes exacto
+ * 2. Query QBO por DisplayName exacto (Notes NO es queryable en QBO API
+ *    → QueryValidationError 4001). DisplayName es determinístico y QBO
+ *    lo fuerza único, así que sirve como llave de búsqueda.
  * 3. Si no existe:
- *    - Customer normal: crea con Notes="CED:<cedula>"
- *    - Sub-customer: asegura padre, luego crea con Job=true + ParentRef
+ *    - Customer normal: crea "<nombre> (<cedula>)"
+ *    - Sub-customer: asegura padre, luego crea "Yobel - <area>" con
+ *      Job=true + ParentRef
+ *
+ * Notes se sigue seteando al crear (audit), pero no se usa para buscar.
  *
  * Retorna qboCustomerId.
  */
@@ -42,7 +47,14 @@ export async function findOrCreateCustomer(opts: FindOrCreateOpts): Promise<stri
   if (cached) return cached.qboCustomerId;
 
   const notesTag = buildNotes(cedula, subClienteArea);
-  const query = `SELECT * FROM Customer WHERE Notes = '${escapeForQuery(notesTag)}' MAXRESULTS 1`;
+
+  const targetDisplay = subClienteArea
+    ? `Yobel - ${subClienteArea}`.slice(0, 100)
+    : `${displayName} (${cedula})`.slice(0, 100);
+
+  const query = `SELECT * FROM Customer WHERE DisplayName = '${escapeForQuery(
+    targetDisplay
+  )}' MAXRESULTS 1`;
   const found = await qboRequest<{
     QueryResponse?: { Customer?: Array<{ Id: string; DisplayName: string }> };
   }>({
@@ -71,14 +83,13 @@ export async function findOrCreateCustomer(opts: FindOrCreateOpts): Promise<stri
       subClienteArea: null,
     });
 
-    const subDisplay = `Yobel - ${subClienteArea}`.slice(0, 100);
     const created = await qboRequest<{
       Customer: { Id: string; DisplayName: string };
     }>({
       method: "POST",
       path: "/v3/company/{realmId}/customer",
       body: {
-        DisplayName: subDisplay,
+        DisplayName: targetDisplay,
         CompanyName: subClienteArea,
         Job: true,
         ParentRef: { value: parentId },
@@ -95,14 +106,13 @@ export async function findOrCreateCustomer(opts: FindOrCreateOpts): Promise<stri
     return created.Customer.Id;
   }
 
-  const safeDisplayName = `${displayName} (${cedula})`.slice(0, 100);
   const created = await qboRequest<{
     Customer: { Id: string; DisplayName: string };
   }>({
     method: "POST",
     path: "/v3/company/{realmId}/customer",
     body: {
-      DisplayName: safeDisplayName,
+      DisplayName: targetDisplay,
       CompanyName: displayName,
       Notes: notesTag,
       ...(email ? { PrimaryEmailAddr: { Address: email } } : {}),
