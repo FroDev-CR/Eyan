@@ -48,9 +48,13 @@ export async function findOrCreateCustomer(opts: FindOrCreateOpts): Promise<stri
 
   const notesTag = buildNotes(cedula, subClienteArea);
 
+  // Sub-cliente Yobel = solo el área (Amanco / Kimberly Clark / Otros),
+  // colgando del padre Yobel. Resto = nombre FEN tal cual.
+  // QBO compara DisplayName case-insensitive, así que "Amanco" reusa
+  // un "AMANCO" creado a mano.
   const targetDisplay = subClienteArea
-    ? `Yobel - ${subClienteArea}`.slice(0, 100)
-    : `${displayName} (${cedula})`.slice(0, 100);
+    ? subClienteArea.slice(0, 100)
+    : displayName.slice(0, 100);
 
   const query = `SELECT * FROM Customer WHERE DisplayName = '${escapeForQuery(
     targetDisplay

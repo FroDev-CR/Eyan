@@ -78,6 +78,9 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
 
   const body: Record<string, unknown> = {
     TxnDate: txnDate,
+    // DocNumber = consecutivo FEN para que el # de factura QBO coincida
+    // con FEN (máx 21 chars en QBO).
+    DocNumber: input.consecutivo.slice(0, 21),
     CustomerRef: { value: input.customerId },
     PrivateNote: privateNote,
     Line: [
