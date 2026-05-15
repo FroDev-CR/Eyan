@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const includeAnuladas = searchParams.get("includeAnuladas") === "true";
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const area = searchParams.get("area"); // Amanco | Kimberly Clark | Otros | directo | all
 
     const filter: Record<string, unknown> = {};
     if (!includeAnuladas) filter.anulado = false;
@@ -30,6 +31,14 @@ export async function GET(request: NextRequest) {
       if (from) range.$gte = new Date(from);
       if (to) range.$lte = new Date(to);
       filter.fecha = range;
+    }
+    if (area && area !== "all") {
+      if (area === "directo") {
+        filter.identification = "3101354880";
+        filter.subClienteArea = null;
+      } else if (area === "Amanco" || area === "Kimberly Clark" || area === "Otros") {
+        filter.subClienteArea = area;
+      }
     }
 
     const invoices = await FENInvoice.find(filter)

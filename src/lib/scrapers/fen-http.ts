@@ -4,8 +4,12 @@ const FEN_BASE_URL = process.env.FEN_BASE_URL || "https://app.facturaenlanube.co
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+export type OCPrefix = "ME" | "KC" | "WHL";
+export type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
+
 export interface FENScrapedInvoice {
   fenId: string;
+  xmlCod?: string;
   consecutivo: string;
   identification: string;
   clienteName: string;
@@ -18,6 +22,11 @@ export interface FENScrapedInvoice {
   estadoHacienda: string;
   correoEnviado: boolean;
   anulado: boolean;
+  observaciones?: string;
+  ordenCompraPrefix?: OCPrefix | null;
+  ordenCompraNumero?: string;
+  subClienteArea?: SubClienteArea | null;
+  detalleScraped: boolean;
   raw: Record<string, unknown>;
 }
 
@@ -172,7 +181,8 @@ function parseInvoicesPage(html: string): FENScrapedInvoice[] {
   const invoices: FENScrapedInvoice[] = [];
 
   $("table tbody tr").each((_, tr) => {
-    const cells = $(tr)
+    const $tr = $(tr);
+    const cells = $tr
       .find("td")
       .map((__, td) => $(td).text().trim())
       .get();
@@ -181,8 +191,11 @@ function parseInvoicesPage(html: string): FENScrapedInvoice[] {
     const fenId = cells[0];
     if (!fenId || isNaN(Number(fenId))) return;
 
+    const xmlCod = $tr.find("a[data-cod]").first().attr("data-cod") || "";
+
     invoices.push({
       fenId,
+      xmlCod,
       consecutivo: cells[1] || "",
       identification: cells[2] || "",
       clienteName: cells[3] || "",
@@ -195,6 +208,7 @@ function parseInvoicesPage(html: string): FENScrapedInvoice[] {
       estadoHacienda: cells[10] || "",
       correoEnviado: /enviado|sí|si|yes/i.test(cells[11] || ""),
       anulado: /^si$|^sí$|^yes$/i.test(cells[12] || ""),
+      detalleScraped: false,
       raw: {
         fechaStr: cells[4],
         montoStr: cells[8],
@@ -208,6 +222,64 @@ function parseInvoicesPage(html: string): FENScrapedInvoice[] {
   return invoices;
 }
 
+const OC_REGEX = /ORDEN\s+DE\s+COMPRA\s*([A-Z]{2,4})[\s-]*(\S+)?/i;
+
+function parseObservaciones(xml: string): {
+  observaciones: string;
+  prefix: OCPrefix | null;
+  numero: string;
+} {
+  const m = xml.match(/<OtroTexto>([\s\S]*?)<\/OtroTexto>/);
+  if (!m) return { observaciones: "", prefix: null, numero: "" };
+
+  const observaciones = m[1].replace(/&#xD;/g, "\n").trim();
+  const oc = observaciones.match(OC_REGEX);
+  if (!oc) return { observaciones, prefix: null, numero: "" };
+
+  const rawPrefix = oc[1].toUpperCase();
+  const prefix: OCPrefix | null =
+    rawPrefix === "ME" || rawPrefix === "KC" || rawPrefix === "WHL"
+      ? (rawPrefix as OCPrefix)
+      : null;
+  return { observaciones, prefix, numero: (oc[2] || "").trim() };
+}
+
+const YOBEL_CEDULA = "3101354880";
+
+export function resolveSubClienteArea(
+  identification: string,
+  prefix: OCPrefix | null
+): SubClienteArea | null {
+  if (identification !== YOBEL_CEDULA) return null;
+  if (prefix === "ME") return "Amanco";
+  if (prefix === "KC") return "Kimberly Clark";
+  if (prefix === "WHL") return "Otros";
+  return null;
+}
+
+export async function scrapeInvoiceDetail(
+  jar: CookieJar,
+  fenId: string,
+  xmlCod: string
+): Promise<{
+  observaciones: string;
+  ordenCompraPrefix: OCPrefix | null;
+  ordenCompraNumero: string;
+} | null> {
+  if (!xmlCod) return null;
+  const url = `${FEN_BASE_URL}/index.php?r=facturasVenta/FacturaXML&id=${fenId}&cod=${xmlCod}`;
+  const res = await fenFetch(url, jar);
+  if (res.status !== 200) return null;
+  const xml = await res.text();
+  if (!xml.includes("<FacturaElectronica")) return null;
+  const { observaciones, prefix, numero } = parseObservaciones(xml);
+  return {
+    observaciones,
+    ordenCompraPrefix: prefix,
+    ordenCompraNumero: numero,
+  };
+}
+
 function hasNextPage(html: string, currentPage: number): boolean {
   const $ = cheerio.load(html);
   const nextLink = $(`.pagination a[href*="FacturaVenta_page=${currentPage + 1}"]`).first();
@@ -215,10 +287,11 @@ function hasNextPage(html: string, currentPage: number): boolean {
 }
 
 export async function scrapeFENInvoices(
-  opts: { monthsBack?: number } = {}
+  opts: { monthsBack?: number; enrichDetail?: boolean } = {}
 ): Promise<FENScrapeResult> {
   const debug: string[] = [];
   const monthsBack = opts.monthsBack ?? 1;
+  const enrichDetail = opts.enrichDetail ?? true;
   const maxPages = 200;
 
   try {
@@ -263,7 +336,32 @@ export async function scrapeFENInvoices(
       pageNum++;
     }
 
-    debug.push(`Total scraped: ${all.length}`);
+    debug.push(`Listed: ${all.length}`);
+
+    if (enrichDetail) {
+      let enriched = 0;
+      for (const inv of all) {
+        if (inv.anulado || !inv.xmlCod) continue;
+        try {
+          const detail = await scrapeInvoiceDetail(jar, inv.fenId, inv.xmlCod);
+          if (detail) {
+            inv.observaciones = detail.observaciones;
+            inv.ordenCompraPrefix = detail.ordenCompraPrefix;
+            inv.ordenCompraNumero = detail.ordenCompraNumero;
+            inv.subClienteArea = resolveSubClienteArea(
+              inv.identification,
+              detail.ordenCompraPrefix
+            );
+            inv.detalleScraped = true;
+            enriched++;
+          }
+        } catch (e) {
+          debug.push(`Detail fail ${inv.fenId}: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+      debug.push(`Enriched: ${enriched}/${all.length}`);
+    }
+
     return { success: true, invoices: all, debug };
   } catch (e) {
     return {

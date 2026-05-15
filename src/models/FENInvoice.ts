@@ -1,8 +1,11 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
+
 export interface IFENInvoice extends Document {
   _id: mongoose.Types.ObjectId;
   fenId: string;              // Id interno FEN (1755094, etc)
+  xmlCod?: string;            // hash para fetch XML (data-cod)
   consecutivo: string;        // # consecutivo (3643, etc)
   identification: string;     // cédula cliente
   clienteName: string;
@@ -15,6 +18,11 @@ export interface IFENInvoice extends Document {
   estadoHacienda: string;     // Aceptado, Rechazado, Pendiente, Sin enviar
   correoEnviado: boolean;
   anulado: boolean;
+  observaciones?: string;     // OtroTexto crudo del XML
+  ordenCompraPrefix?: "ME" | "KC" | "WHL" | null;
+  ordenCompraNumero?: string;
+  subClienteArea?: SubClienteArea | null;  // null = directo al cliente principal
+  detalleScraped: boolean;    // ya bajamos el XML?
   scrapedAt: Date;
   raw?: Record<string, unknown>;
   createdAt: Date;
@@ -24,6 +32,7 @@ export interface IFENInvoice extends Document {
 const FENInvoiceSchema = new Schema<IFENInvoice>(
   {
     fenId: { type: String, required: true, unique: true, index: true },
+    xmlCod: { type: String, default: "" },
     consecutivo: { type: String, required: true, index: true },
     identification: { type: String, required: true, index: true },
     clienteName: { type: String, required: true },
@@ -36,6 +45,11 @@ const FENInvoiceSchema = new Schema<IFENInvoice>(
     estadoHacienda: { type: String, default: "" },
     correoEnviado: { type: Boolean, default: false },
     anulado: { type: Boolean, default: false, index: true },
+    observaciones: { type: String, default: "" },
+    ordenCompraPrefix: { type: String, enum: ["ME", "KC", "WHL", null], default: null, index: true },
+    ordenCompraNumero: { type: String, default: "" },
+    subClienteArea: { type: String, enum: ["Amanco", "Kimberly Clark", "Otros", null], default: null, index: true },
+    detalleScraped: { type: Boolean, default: false, index: true },
     scrapedAt: { type: Date, default: Date.now },
     raw: { type: Schema.Types.Mixed },
   },

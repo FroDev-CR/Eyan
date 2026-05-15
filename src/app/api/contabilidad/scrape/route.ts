@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
           { fenId: inv.fenId },
           {
             $set: {
+              xmlCod: inv.xmlCod || "",
               consecutivo: inv.consecutivo,
               identification: inv.identification,
               clienteName: inv.clienteName,
@@ -61,6 +62,11 @@ export async function POST(request: NextRequest) {
               estadoHacienda: inv.estadoHacienda,
               correoEnviado: inv.correoEnviado,
               anulado: inv.anulado,
+              observaciones: inv.observaciones || "",
+              ordenCompraPrefix: inv.ordenCompraPrefix ?? null,
+              ordenCompraNumero: inv.ordenCompraNumero || "",
+              subClienteArea: inv.subClienteArea ?? null,
+              detalleScraped: inv.detalleScraped,
               scrapedAt: new Date(),
               raw: inv.raw,
             },

@@ -95,10 +95,19 @@ export async function POST(request: NextRequest) {
     );
 
     try {
-      const customerId = await findOrCreateCustomer(
-        invoice.identification,
-        invoice.clienteName
-      );
+      const customerId = await findOrCreateCustomer({
+        cedula: invoice.identification,
+        displayName: invoice.clienteName,
+        subClienteArea: invoice.subClienteArea ?? null,
+        parentDisplayName: invoice.subClienteArea ? invoice.clienteName : undefined,
+      });
+
+      const ocTag =
+        invoice.ordenCompraPrefix && invoice.ordenCompraNumero
+          ? `OC ${invoice.ordenCompraPrefix}-${invoice.ordenCompraNumero}`
+          : invoice.ordenCompraPrefix
+            ? `OC ${invoice.ordenCompraPrefix}`
+            : undefined;
 
       const created = await createInvoice({
         customerId,
@@ -106,6 +115,15 @@ export async function POST(request: NextRequest) {
         fecha: invoice.fecha,
         monto: invoice.monto,
         moneda: invoice.moneda,
+        descripcion: invoice.observaciones
+          ? invoice.observaciones.split("\n")[0].slice(0, 200)
+          : undefined,
+        privateNoteExtra: [
+          invoice.subClienteArea ? `Área: ${invoice.subClienteArea}` : null,
+          ocTag,
+        ]
+          .filter(Boolean)
+          .join(" — "),
       });
 
       await InvoiceSync.findOneAndUpdate(

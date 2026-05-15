@@ -26,6 +26,9 @@ import {
 import { useToast } from "@/hooks/useToast";
 
 type SyncStatus = "pending" | "syncing" | "synced" | "failed";
+type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
+
+const YOBEL_CEDULA = "3101354880";
 
 interface FENInvoiceWithSync {
   _id: string;
@@ -42,6 +45,10 @@ interface FENInvoiceWithSync {
   estadoHacienda: string;
   correoEnviado: boolean;
   anulado: boolean;
+  observaciones?: string;
+  ordenCompraPrefix?: "ME" | "KC" | "WHL" | null;
+  ordenCompraNumero?: string;
+  subClienteArea?: SubClienteArea | null;
   scrapedAt: string;
   sync: {
     status: SyncStatus;
@@ -100,6 +107,7 @@ function ContabilidadInner() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [qboStatus, setQboStatus] = useState<QBOStatus | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [areaFilter, setAreaFilter] = useState<string>("all");
   const [monthsBack, setMonthsBack] = useState<string>("1");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { toast } = useToast();
@@ -138,6 +146,7 @@ function ContabilidadInner() {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (areaFilter !== "all") params.set("area", areaFilter);
       const res = await fetch(`/api/contabilidad/invoices?${params}`);
       const json = await res.json();
       if (json.success) setInvoices(json.data);
@@ -145,7 +154,7 @@ function ContabilidadInner() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, toast]);
+  }, [statusFilter, areaFilter, toast]);
 
   useEffect(() => {
     fetchInvoices();
@@ -379,6 +388,18 @@ function ContabilidadInner() {
             <SelectItem value="failed">Falladas</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={areaFilter} onValueChange={setAreaFilter}>
+          <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectValue placeholder="Área Yobel" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las áreas</SelectItem>
+            <SelectItem value="Amanco">Amanco</SelectItem>
+            <SelectItem value="Kimberly Clark">Kimberly Clark</SelectItem>
+            <SelectItem value="Otros">Otros (WHL)</SelectItem>
+            <SelectItem value="directo">Yobel directo</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="text-[11px] text-muted-foreground ml-auto">
           {invoices.length} facturas en caché
         </div>
@@ -402,7 +423,7 @@ function ContabilidadInner() {
           className="rounded-lg overflow-hidden"
           style={{ backgroundColor: "var(--color-surface)" }}
         >
-          <div className="grid grid-cols-[40px_90px_100px_1fr_130px_120px_130px_120px] border-b border-border">
+          <div className="grid grid-cols-[40px_85px_95px_1fr_115px_125px_115px_125px_105px] border-b border-border">
             <div className="px-3 py-2.5 flex items-center">
               <input
                 type="checkbox"
@@ -414,7 +435,7 @@ function ContabilidadInner() {
                 className="h-3.5 w-3.5 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
               />
             </div>
-            {["CONSEC.", "FECHA", "CLIENTE", "CÉDULA", "MONTO", "ESTADO", "HACIENDA"].map((h) => (
+            {["CONSEC.", "FECHA", "CLIENTE", "ÁREA", "CÉDULA", "MONTO", "ESTADO", "HACIENDA"].map((h) => (
               <div
                 key={h}
                 className="px-3 py-2.5 text-[10px] font-heading font-600 uppercase tracking-widest text-muted-foreground"
@@ -433,7 +454,7 @@ function ContabilidadInner() {
               return (
                 <div
                   key={inv._id}
-                  className={`grid grid-cols-[40px_90px_100px_1fr_130px_120px_130px_120px] items-center hover:bg-accent/50 transition-colors ${
+                  className={`grid grid-cols-[40px_85px_95px_1fr_115px_125px_115px_125px_105px] items-center hover:bg-accent/50 transition-colors ${
                     inv.anulado ? "opacity-40" : ""
                   } ${i % 2 === 0 ? "" : "bg-black/[0.06]"}`}
                 >
@@ -466,6 +487,10 @@ function ContabilidadInner() {
                     {inv.anulado && (
                       <p className="text-[10px] text-red-400 font-medium mt-0.5">ANULADA</p>
                     )}
+                  </div>
+
+                  <div className="px-3 py-3">
+                    <AreaBadge inv={inv} />
                   </div>
 
                   <div className="px-3 py-3">
@@ -549,6 +574,41 @@ export default function ContabilidadPage() {
       <ContabilidadInner />
     </Suspense>
   );
+}
+
+function AreaBadge({ inv }: { inv: FENInvoiceWithSync }) {
+  const area = inv.subClienteArea;
+  const isYobel = inv.identification === YOBEL_CEDULA;
+
+  if (area) {
+    const styles: Record<SubClienteArea, string> = {
+      Amanco: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+      "Kimberly Clark": "bg-purple-500/15 text-purple-300 border-purple-500/30",
+      Otros: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+    };
+    const label = area === "Kimberly Clark" ? "KC" : area;
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium ${styles[area]}`}
+        title={inv.ordenCompraNumero ? `OC ${area} ${inv.ordenCompraNumero}` : area}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  if (isYobel) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-md border bg-muted/30 text-muted-foreground border-border text-[10px] font-medium"
+        title="Yobel sin sub-cliente (sin OC reconocida)"
+      >
+        Directo
+      </span>
+    );
+  }
+
+  return <span className="text-[11px] text-muted-foreground">—</span>;
 }
 
 function StatPill({ label, count, color }: { label: string; count: number; color: string }) {

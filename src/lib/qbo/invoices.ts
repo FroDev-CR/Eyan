@@ -55,6 +55,7 @@ export interface CreateInvoiceInput {
   monto: number;
   moneda: string;            // CRC, USD
   descripcion?: string;
+  privateNoteExtra?: string;
 }
 
 export interface CreatedInvoice {
@@ -68,10 +69,17 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
 
   const txnDate = input.fecha.toISOString().slice(0, 10); // YYYY-MM-DD
 
+  const privateNote = [
+    `Sincronizado desde FEN #${input.consecutivo}`,
+    input.privateNoteExtra,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
   const body: Record<string, unknown> = {
     TxnDate: txnDate,
     CustomerRef: { value: input.customerId },
-    PrivateNote: `Sincronizado desde FEN #${input.consecutivo}`,
+    PrivateNote: privateNote,
     Line: [
       {
         DetailType: "SalesItemLineDetail",
