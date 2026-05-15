@@ -43,10 +43,30 @@ export async function POST(request: NextRequest) {
 
     let customerSyncDeleted = 0;
     let invoiceSyncDeleted = 0;
+    let indexFix = "skipped";
 
     if (clearCustomers) {
       const r = await CustomerSync.deleteMany({});
       customerSyncDeleted = r.deletedCount ?? 0;
+
+      // Índice legacy `cedula_1` (unique solo en cedula) sobrevive del
+      // modelo viejo y rompe sub-clientes (mismo cedula, distinto área)
+      // con E11000. Dropearlo y re-sincronizar índices del schema
+      // (compound unique cedula+subClienteArea).
+      try {
+        await CustomerSync.collection.dropIndex("cedula_1");
+        indexFix = "dropped cedula_1";
+      } catch (e) {
+        indexFix = `no cedula_1 (${e instanceof Error ? e.message : "?"})`;
+      }
+      try {
+        await CustomerSync.syncIndexes();
+        indexFix += " + syncIndexes ok";
+      } catch (e) {
+        indexFix += ` + syncIndexes fail: ${
+          e instanceof Error ? e.message : "?"
+        }`;
+      }
     }
 
     if (syncsScope === "all") {
@@ -63,6 +83,7 @@ export async function POST(request: NextRequest) {
         customerSyncDeleted,
         invoiceSyncDeleted,
         syncsScope: syncsScope ?? "none",
+        indexFix,
       },
     });
   } catch (error) {
