@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
               qboInvoiceId: sync.qboInvoiceId,
               qboInvoiceNumber: sync.qboInvoiceNumber,
               syncedAt: sync.syncedAt,
-              error: sync.error,
+              // No mostrar error stale en filas ya sincronizadas
+              error: sync.status === "synced" ? undefined : sync.error,
               attempts: sync.attempts,
             }
           : { status: "pending" as const, attempts: 0 },

@@ -135,8 +135,8 @@ export async function POST(request: NextRequest) {
             qboInvoiceNumber: created.DocNumber,
             syncedAt: new Date(),
             syncedBy: session.user.id,
-            error: undefined,
           },
+          $unset: { error: "" },
         }
       );
 
