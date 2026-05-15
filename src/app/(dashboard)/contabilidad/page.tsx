@@ -218,16 +218,22 @@ function ContabilidadInner() {
     }
   };
 
-  const pendingInvoices = useMemo(
-    () => invoices.filter((i) => i.sync.status === "pending" && !i.anulado),
+  // Seleccionables: pendientes + falladas (retry), no anuladas
+  const selectableInvoices = useMemo(
+    () =>
+      invoices.filter(
+        (i) =>
+          (i.sync.status === "pending" || i.sync.status === "failed") &&
+          !i.anulado
+      ),
     [invoices]
   );
 
   const toggleAll = () => {
-    if (selected.size === pendingInvoices.length) {
+    if (selected.size === selectableInvoices.length && selected.size > 0) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(pendingInvoices.map((i) => i._id)));
+      setSelected(new Set(selectableInvoices.map((i) => i._id)));
     }
   };
 
@@ -428,10 +434,11 @@ function ContabilidadInner() {
               <input
                 type="checkbox"
                 checked={
-                  pendingInvoices.length > 0 && selected.size === pendingInvoices.length
+                  selectableInvoices.length > 0 &&
+                  selected.size === selectableInvoices.length
                 }
                 onChange={toggleAll}
-                disabled={pendingInvoices.length === 0}
+                disabled={selectableInvoices.length === 0}
                 className="h-3.5 w-3.5 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
               />
             </div>
@@ -448,7 +455,10 @@ function ContabilidadInner() {
           <div className="divide-y divide-border">
             {invoices.map((inv, i) => {
               const meta = STATUS_META[inv.sync.status];
-              const isPending = inv.sync.status === "pending" && !inv.anulado;
+              const isSelectable =
+                (inv.sync.status === "pending" ||
+                  inv.sync.status === "failed") &&
+                !inv.anulado;
               const isSelected = selected.has(inv._id);
 
               return (
@@ -463,7 +473,7 @@ function ContabilidadInner() {
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleOne(inv._id)}
-                      disabled={!isPending}
+                      disabled={!isSelectable}
                       className="h-3.5 w-3.5 rounded border-border accent-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                     />
                   </div>
