@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
         // Solo overwrite detalle si scraper realmente lo fetcheó
         if (inv.detalleScraped) {
           baseSet.observaciones = inv.observaciones || "";
+          baseSet.lineaDescripcion = inv.lineaDescripcion || "";
           baseSet.ordenCompraPrefix = inv.ordenCompraPrefix ?? null;
           baseSet.ordenCompraNumero = inv.ordenCompraNumero || "";
           baseSet.subClienteArea = inv.subClienteArea ?? null;

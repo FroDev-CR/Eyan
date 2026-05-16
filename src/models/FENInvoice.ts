@@ -19,6 +19,7 @@ export interface IFENInvoice extends Document {
   correoEnviado: boolean;
   anulado: boolean;
   observaciones?: string;     // OtroTexto crudo del XML
+  lineaDescripcion?: string;  // Detalle de líneas del XML (servicio facturado)
   ordenCompraPrefix?: "ME" | "KC" | "WHL" | null;
   ordenCompraNumero?: string;
   subClienteArea?: SubClienteArea | null;  // null = directo al cliente principal
@@ -46,6 +47,7 @@ const FENInvoiceSchema = new Schema<IFENInvoice>(
     correoEnviado: { type: Boolean, default: false },
     anulado: { type: Boolean, default: false, index: true },
     observaciones: { type: String, default: "" },
+    lineaDescripcion: { type: String, default: "" },
     ordenCompraPrefix: { type: String, enum: ["ME", "KC", "WHL", null], default: null, index: true },
     ordenCompraNumero: { type: String, default: "" },
     subClienteArea: { type: String, enum: ["Amanco", "Kimberly Clark", "Otros", null], default: null, index: true },

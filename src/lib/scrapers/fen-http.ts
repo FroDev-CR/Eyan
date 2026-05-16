@@ -23,6 +23,7 @@ export interface FENScrapedInvoice {
   correoEnviado: boolean;
   anulado: boolean;
   observaciones?: string;
+  lineaDescripcion?: string;
   ordenCompraPrefix?: OCPrefix | null;
   ordenCompraNumero?: string;
   subClienteArea?: SubClienteArea | null;
@@ -222,6 +223,28 @@ function parseInvoicesPage(html: string): FENScrapedInvoice[] {
   return invoices;
 }
 
+/**
+ * Descripción de las líneas del XML (Hacienda CR v4.4: <Detalle> dentro
+ * de <LineaDetalle>). Une las distintas, dedupe, recorta.
+ */
+function parseLineaDescripcion(xml: string): string {
+  const re = /<Detalle>([\s\S]*?)<\/Detalle>/g;
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const txt = m[1]
+      .replace(/&#xD;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!txt || seen.has(txt.toLowerCase())) continue;
+    seen.add(txt.toLowerCase());
+    parts.push(txt);
+  }
+  return parts.join("; ").slice(0, 300);
+}
+
 const OC_REGEX = /ORDEN\s+DE\s+COMPRA\s*([A-Z]{2,4})[\s-]*(\S+)?/i;
 
 function parseObservaciones(xml: string): {
@@ -263,6 +286,7 @@ export async function scrapeInvoiceDetail(
   xmlCod: string
 ): Promise<{
   observaciones: string;
+  lineaDescripcion: string;
   ordenCompraPrefix: OCPrefix | null;
   ordenCompraNumero: string;
 } | null> {
@@ -275,6 +299,7 @@ export async function scrapeInvoiceDetail(
   const { observaciones, prefix, numero } = parseObservaciones(xml);
   return {
     observaciones,
+    lineaDescripcion: parseLineaDescripcion(xml),
     ordenCompraPrefix: prefix,
     ordenCompraNumero: numero,
   };
@@ -356,6 +381,7 @@ export async function scrapeFENInvoices(
           const detail = await scrapeInvoiceDetail(jar, inv.fenId, inv.xmlCod);
           if (detail) {
             inv.observaciones = detail.observaciones;
+            inv.lineaDescripcion = detail.lineaDescripcion;
             inv.ordenCompraPrefix = detail.ordenCompraPrefix;
             inv.ordenCompraNumero = detail.ordenCompraNumero;
             inv.subClienteArea = resolveSubClienteArea(

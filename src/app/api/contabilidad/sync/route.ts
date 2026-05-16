@@ -102,12 +102,11 @@ export async function POST(request: NextRequest) {
         parentDisplayName: invoice.subClienteArea ? invoice.clienteName : undefined,
       });
 
-      const ocTag =
+      // Número OC limpio para el campo QBO "ORDEN COMPRA": "KC-106"
+      const ordenCompra =
         invoice.ordenCompraPrefix && invoice.ordenCompraNumero
-          ? `OC ${invoice.ordenCompraPrefix}-${invoice.ordenCompraNumero}`
-          : invoice.ordenCompraPrefix
-            ? `OC ${invoice.ordenCompraPrefix}`
-            : undefined;
+          ? `${invoice.ordenCompraPrefix}-${invoice.ordenCompraNumero}`
+          : invoice.ordenCompraPrefix || undefined;
 
       const created = await createInvoice({
         customerId,
@@ -115,12 +114,14 @@ export async function POST(request: NextRequest) {
         fecha: invoice.fecha,
         monto: invoice.monto,
         moneda: invoice.moneda,
-        descripcion: invoice.observaciones
-          ? invoice.observaciones.split("\n")[0].slice(0, 200)
-          : undefined,
+        // Descripción de línea = servicio facturado en FEN
+        descripcion: invoice.lineaDescripcion || undefined,
+        ordenCompra,
+        // Observaciones FEN → PrivateNote (Nota sobre extracto)
+        observacionesText: invoice.observaciones || undefined,
         privateNoteExtra: [
           invoice.subClienteArea ? `Área: ${invoice.subClienteArea}` : null,
-          ocTag,
+          ordenCompra ? `OC ${ordenCompra}` : null,
         ]
           .filter(Boolean)
           .join(" — "),

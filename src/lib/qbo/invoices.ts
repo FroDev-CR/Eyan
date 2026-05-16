@@ -48,13 +48,59 @@ export async function getDefaultServiceItemId(): Promise<string> {
   return created.Item.Id;
 }
 
+/**
+ * QBO tiene hasta 3 custom fields en formularios de venta. Buscamos el
+ * DefinitionId del campo "ORDEN COMPRA" en Preferences para poder
+ * setearlo en la factura. Cache: undefined=sin consultar, null=no
+ * existe, string=DefinitionId.
+ */
+let cachedOcFieldId: string | null | undefined = undefined;
+
+export async function getOrdenCompraFieldId(): Promise<string | null> {
+  if (cachedOcFieldId !== undefined) return cachedOcFieldId;
+
+  try {
+    const prefs = await qboRequest<{
+      Preferences?: {
+        SalesFormsPrefs?: {
+          CustomField?: Array<{
+            CustomField?: Array<{
+              Name?: string;
+              StringValue?: string;
+            }>;
+          }>;
+        };
+      };
+    }>({ path: "/v3/company/{realmId}/preferences" });
+
+    const groups = prefs.Preferences?.SalesFormsPrefs?.CustomField ?? [];
+    for (const g of groups) {
+      for (const f of g.CustomField ?? []) {
+        const m = f.Name?.match(/SalesCustomName(\d)/i);
+        const val = (f.StringValue ?? "").trim().toUpperCase();
+        if (m && val.includes("ORDEN") && val.includes("COMPRA")) {
+          cachedOcFieldId = m[1];
+          return cachedOcFieldId;
+        }
+      }
+    }
+  } catch {
+    // Si Preferences falla, no bloquear la factura
+  }
+
+  cachedOcFieldId = null;
+  return null;
+}
+
 export interface CreateInvoiceInput {
   customerId: string;
   consecutivo: string;       // # factura FEN, usado como DocNumber
   fecha: Date;
   monto: number;
   moneda: string;            // CRC, USD
-  descripcion?: string;
+  descripcion?: string;      // descripción de línea (servicio FEN)
+  ordenCompra?: string;      // solo número, ej "KC-106" → campo QBO ORDEN COMPRA
+  observacionesText?: string; // Observaciones FEN → va al PrivateNote
   privateNoteExtra?: string;
 }
 
@@ -72,9 +118,11 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
   const privateNote = [
     `Sincronizado desde FEN #${input.consecutivo}`,
     input.privateNoteExtra,
+    input.observacionesText,
   ]
     .filter(Boolean)
-    .join(" | ");
+    .join(" | ")
+    .slice(0, 4000); // PrivateNote QBO máx 4000 chars
 
   const body: Record<string, unknown> = {
     TxnDate: txnDate,
@@ -87,7 +135,8 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
       {
         DetailType: "SalesItemLineDetail",
         Amount: input.monto,
-        Description: input.descripcion || `Factura FEN #${input.consecutivo}`,
+        Description:
+          input.descripcion || `Factura FEN #${input.consecutivo}`,
         SalesItemLineDetail: {
           ItemRef: { value: itemId },
           Qty: 1,
@@ -96,6 +145,21 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
       },
     ],
   };
+
+  // Campo custom "ORDEN COMPRA" en QBO (solo el número, ej "KC-106")
+  if (input.ordenCompra) {
+    const ocFieldId = await getOrdenCompraFieldId();
+    if (ocFieldId) {
+      body.CustomField = [
+        {
+          DefinitionId: ocFieldId,
+          Name: "ORDEN COMPRA",
+          Type: "StringType",
+          StringValue: input.ordenCompra.slice(0, 31), // límite QBO
+        },
+      ];
+    }
+  }
 
   // CurrencyRef solo si QBO está configurado multi-currency
   if (input.moneda && input.moneda !== "USD") {
