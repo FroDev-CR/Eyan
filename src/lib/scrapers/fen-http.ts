@@ -245,7 +245,9 @@ function parseLineaDescripcion(xml: string): string {
   return parts.join("; ").slice(0, 300);
 }
 
-const OC_REGEX = /ORDEN\s+DE\s+COMPRA\s*([A-Z]{2,4})[\s-]*(\S+)?/i;
+// Label "ORDEN DE COMPRA" seguido del código (KC-106, 4500921112, etc).
+// El código puede o no traer prefijo alfabético.
+const OC_LABEL_REGEX = /ORDEN\s+DE\s+COMPRA\s*[:#-]?\s*([^\n\r]+)/i;
 
 function parseObservaciones(xml: string): {
   observaciones: string;
@@ -256,15 +258,18 @@ function parseObservaciones(xml: string): {
   if (!m) return { observaciones: "", prefix: null, numero: "" };
 
   const observaciones = m[1].replace(/&#xD;/g, "\n").trim();
-  const oc = observaciones.match(OC_REGEX);
+  const oc = observaciones.match(OC_LABEL_REGEX);
   if (!oc) return { observaciones, prefix: null, numero: "" };
 
-  const rawPrefix = oc[1].toUpperCase();
-  const prefix: OCPrefix | null =
-    rawPrefix === "ME" || rawPrefix === "KC" || rawPrefix === "WHL"
-      ? (rawPrefix as OCPrefix)
-      : null;
-  return { observaciones, prefix, numero: (oc[2] || "").trim() };
+  // Primer token tras el label = código OC completo (KC-106 / 4500921112)
+  const codeMatch = oc[1].match(/[A-Za-z0-9][A-Za-z0-9._/-]*/);
+  const numero = (codeMatch?.[0] ?? "").trim().slice(0, 31);
+
+  // Prefijo solo para mapear área Yobel (ME/KC/WHL); numérico → null
+  const pm = numero.toUpperCase().match(/\b(ME|KC|WHL)\b/);
+  const prefix: OCPrefix | null = pm ? (pm[1] as OCPrefix) : null;
+
+  return { observaciones, prefix, numero };
 }
 
 const YOBEL_CEDULA = "3101354880";

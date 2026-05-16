@@ -101,7 +101,6 @@ export interface CreateInvoiceInput {
   descripcion?: string;      // descripción de línea (servicio FEN)
   ordenCompra?: string;      // solo número, ej "KC-106" → campo QBO ORDEN COMPRA
   observacionesText?: string; // Observaciones FEN → va al PrivateNote
-  privateNoteExtra?: string;
 }
 
 export interface CreatedInvoice {
@@ -115,14 +114,8 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<CreatedI
 
   const txnDate = input.fecha.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  const privateNote = [
-    `Sincronizado desde FEN #${input.consecutivo}`,
-    input.privateNoteExtra,
-    input.observacionesText,
-  ]
-    .filter(Boolean)
-    .join(" | ")
-    .slice(0, 4000); // PrivateNote QBO máx 4000 chars
+  // PrivateNote = solo observación FEN (vacío si no hay). Máx 4000 chars.
+  const privateNote = (input.observacionesText ?? "").slice(0, 4000);
 
   const body: Record<string, unknown> = {
     TxnDate: txnDate,
