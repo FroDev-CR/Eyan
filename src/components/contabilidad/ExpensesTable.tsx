@@ -15,6 +15,7 @@ interface ExpenseWithSync extends ExpenseRowLike {
   sync: {
     status: SyncStatus;
     qboInvoiceNumber?: string;
+    qboTxnType?: "purchase" | "bill";
     error?: string;
   };
 }
@@ -148,7 +149,8 @@ export function ExpensesTable({
                   </div>
                   {row.sync?.qboInvoiceNumber && (
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      QBO #{row.sync.qboInvoiceNumber}
+                      {row.sync.qboTxnType === "bill" ? "Factura prov." : "Gasto"} · QBO #
+                      {row.sync.qboInvoiceNumber}
                     </div>
                   )}
                   {row.sync?.error && (

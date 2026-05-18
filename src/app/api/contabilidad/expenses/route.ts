@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
               status: sync.status,
               qboInvoiceId: sync.qboInvoiceId,
               qboInvoiceNumber: sync.qboInvoiceNumber,
+              qboTxnType: sync.qboTxnType,
               syncedAt: sync.syncedAt,
               error: sync.status === "synced" ? undefined : sync.error,
               attempts: sync.attempts,

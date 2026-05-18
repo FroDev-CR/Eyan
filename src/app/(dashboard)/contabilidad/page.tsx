@@ -347,7 +347,11 @@ function ContabilidadInner() {
       return;
     }
 
-    if (!confirm(`¿Enviar ${selected.size} factura(s) a QuickBooks Online?`)) return;
+    const confirmMsg =
+      view === "expenses"
+        ? `¿Crear ${selected.size} gasto(s) en QuickBooks Online?\n\nSe registrarán como Gastos (proveedor + categoría), no como facturas de venta.`
+        : `¿Enviar ${selected.size} factura(s) a QuickBooks Online?`;
+    if (!confirm(confirmMsg)) return;
 
     setIsSyncing(true);
     try {
@@ -361,8 +365,11 @@ function ContabilidadInner() {
       const json = await res.json();
       if (json.success) {
         toast({
-          title: "Sync completo",
-          description: `${json.data.synced} sincronizadas · ${json.data.failed} fallidas`,
+          title: view === "expenses" ? "Gastos en QBO" : "Sync completo",
+          description:
+            view === "expenses"
+              ? `${json.data.synced} gasto(s) creado(s) · ${json.data.failed} fallido(s)`
+              : `${json.data.synced} sincronizadas · ${json.data.failed} fallidas`,
           variant: json.data.failed > 0 ? "destructive" : "default",
         });
         setSelected(new Set());
