@@ -93,6 +93,11 @@ export function ExpenseUpload({ onSuccess, onCancel }: ExpenseUploadProps) {
   };
 
   if (importState === "preview" && previewData) {
+    const isNoteType = (docType: unknown) => {
+      const type = String(docType || "").toLowerCase();
+      return type.includes("nota") || type.includes("credit");
+    };
+
     return (
       <Card>
         <CardHeader>
@@ -103,36 +108,48 @@ export function ExpenseUpload({ onSuccess, onCancel }: ExpenseUploadProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm">
-            <p className="text-muted-foreground mb-2">
+            <p className="text-muted-foreground mb-3">
               Se encontraron <span className="font-bold">{previewData.totalRows}</span> gastos para cargar
             </p>
-            <div className="rounded-lg bg-muted p-3 max-h-60 overflow-auto">
-              <table className="text-xs w-full">
-                <thead>
+            <div className="rounded-lg bg-muted border border-border overflow-x-auto max-h-96">
+              <table className="text-xs w-full border-collapse">
+                <thead className="bg-background/80 sticky top-0">
                   <tr className="border-b">
-                    {previewData.headers.slice(0, 5).map((h) => (
-                      <th key={h} className="text-left p-1 font-semibold">
+                    {previewData.headers.map((h) => (
+                      <th key={h} className="text-left px-2 py-1.5 font-semibold whitespace-nowrap">
                         {h}
                       </th>
                     ))}
-                    {previewData.headers.length > 5 && (
-                      <th className="text-left p-1 font-semibold">...</th>
-                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {previewData.rows.slice(0, 5).map((row, i) => (
-                    <tr key={i} className="border-b hover:bg-background/50">
-                      {previewData.headers.slice(0, 5).map((h) => (
-                        <td key={h} className="p-1 text-muted-foreground">
-                          {String(row[h] || "").slice(0, 20)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {previewData.rows.slice(0, 5).map((row, i) => {
+                    const tipoDoc = Object.values(row).find(v => String(v || "").toLowerCase().includes("nota") || String(v || "").toLowerCase().includes("credit"));
+                    const isCredit = previewData.headers.some(h => h.includes("Tipo") && isNoteType(row[h]));
+                    
+                    return (
+                      <tr 
+                        key={i} 
+                        className={`border-b hover:bg-background/50 transition-colors ${
+                          isCredit ? "bg-yellow-500/10" : ""
+                        }`}
+                      >
+                        {previewData.headers.map((h) => (
+                          <td key={h} className="px-2 py-1.5 text-muted-foreground max-w-[200px] truncate">
+                            {String(row[h] || "").slice(0, 40)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            {previewData.rows.some(row => previewData.headers.some(h => h.includes("Tipo") && isNoteType(row[h]))) && (
+              <p className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded px-2 py-1.5 mt-3">
+                ⚠️ Se detectaron notas de crédito (fondo amarillo). Revisa que estén correctas antes de importar.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3">
