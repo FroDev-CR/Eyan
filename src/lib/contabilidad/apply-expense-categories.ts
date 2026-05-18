@@ -14,22 +14,22 @@ export async function applyAutoCategoriesToPendingExpenses(): Promise<number> {
   const accounts = await listExpenseAccounts();
   if (!accounts.length) return 0;
 
-  const pending = await ExpenseInvoice.find({
-    $and: [
-      {
-        $or: [
-          { qboCategoryAccountId: { $in: [null, ""] } },
-          { qboCategoryAccountId: { $exists: false } },
-        ],
-      },
-      { categorySource: { $ne: "manual" } },
-    ],
+  // Re-evaluar reglas en todos los no-manuales (incluye los que no tenían cuenta porque faltaba COMBUSTIBLE/TELEFONOS en el sync)
+  const candidates = await ExpenseInvoice.find({
+    categorySource: { $ne: "manual" },
   }).limit(500);
 
   let updated = 0;
-  for (const expense of pending) {
+  for (const expense of candidates) {
     const suggestion = suggestCategoryFromProvider(expense.providerName, accounts);
     if (!suggestion) continue;
+
+    if (
+      expense.qboCategoryAccountId === suggestion.accountId &&
+      expense.categoryAutoRule === suggestion.ruleId
+    ) {
+      continue;
+    }
 
     expense.qboCategoryAccountId = suggestion.accountId;
     expense.qboCategoryAccountName = suggestion.accountName;

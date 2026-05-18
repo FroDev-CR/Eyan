@@ -34,7 +34,7 @@ export async function POST() {
       data: {
         accountsCount: accounts.length,
         autoCategorized,
-        accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
+        accounts: accounts.map((a) => ({ id: a.id, name: a.name, accountType: a.accountType })),
       },
     });
   } catch (e) {

@@ -20,6 +20,7 @@ type SyncStatus = "pending" | "syncing" | "synced" | "failed";
 export interface QBOCategoryOption {
   id: string;
   name: string;
+  accountType?: string;
 }
 
 interface ExpenseWithSync extends ExpenseRowLike {
@@ -195,7 +196,18 @@ export function ExpensesTable({
                         <SelectContent className="max-h-64">
                           {categories.map((c) => (
                             <SelectItem key={c.id} value={c.id} className="text-xs">
-                              {c.name}
+                              <span className="flex justify-between gap-3 w-full">
+                                <span>{c.name}</span>
+                                {c.accountType && (
+                                  <span className="text-muted-foreground shrink-0">
+                                    {c.accountType === "Bank"
+                                      ? "Banco"
+                                      : c.accountType === "Expense" || c.accountType === "Other Expense"
+                                        ? "Gasto"
+                                        : c.accountType}
+                                  </span>
+                                )}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -31,7 +31,7 @@ export async function GET() {
       success: true,
       data: {
         connected: true,
-        accounts,
+        accounts: accounts.map((a) => ({ id: a.id, name: a.name, accountType: a.accountType })),
         rules: EXPENSE_CATEGORY_RULES.map((r) => ({ id: r.id, label: r.label, keywords: r.keywords.slice(0, 5) })),
       },
     });

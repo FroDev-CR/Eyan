@@ -2,6 +2,7 @@
 export interface QBOExpenseAccountOption {
   id: string;
   name: string;
+  accountType?: string;
 }
 
 export interface ExpenseCategoryRule {
@@ -35,7 +36,7 @@ export const EXPENSE_CATEGORY_RULES: ExpenseCategoryRule[] = [
       "combustible",
       "fuel",
     ],
-    accountPatterns: [/combustible/i, /gasolina/i, /fuel/i],
+    accountPatterns: [/^combustible$/i, /combustible/i, /gasolina/i, /fuel/i],
   },
   {
     id: "telefonos",
@@ -49,7 +50,7 @@ export const EXPENSE_CATEGORY_RULES: ExpenseCategoryRule[] = [
       "liberty",
       "ice telecom",
     ],
-    accountPatterns: [/telefono/i, /teléfono/i, /telecom/i, /comunicacion/i, /comunicación/i],
+    accountPatterns: [/^telefonos$/i, /^telefono$/i, /telefono/i, /teléfono/i, /telecom/i, /comunicacion/i],
   },
 ];
 
@@ -79,6 +80,14 @@ export function resolveRuleToAccount(
   rule: ExpenseCategoryRule,
   accounts: QBOExpenseAccountOption[]
 ): QBOExpenseAccountOption | null {
+  const ruleKeys = [rule.id, rule.label].map((s) => normalizeForMatch(s));
+
+  const exact = accounts.find((a) => {
+    const n = normalizeForMatch(a.name);
+    return ruleKeys.some((k) => k === n);
+  });
+  if (exact) return exact;
+
   for (const pattern of rule.accountPatterns) {
     const found = accounts.find((a) => pattern.test(a.name));
     if (found) return found;
