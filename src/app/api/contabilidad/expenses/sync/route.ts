@@ -71,6 +71,12 @@ export async function POST(request: NextRequest) {
         displayName: expense.providerName || expense.providerIdentification,
       });
 
+      if (!expense.qboCategoryAccountId) {
+        throw new Error(
+          "Asigna una categoría QBO antes de enviar (columna Categoría en la tabla)"
+        );
+      }
+
       const created = await createVendorExpense({
         vendorId,
         consecutivo: expense.consecutivo,
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
         descripcion: expense.docType,
         docType: expense.docType,
         haciendaStatus: expense.haciendaStatus,
+        expenseAccountId: expense.qboCategoryAccountId,
       });
 
       const docNumber = created.DocNumber || expense.consecutivo;

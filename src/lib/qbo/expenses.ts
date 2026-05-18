@@ -1,40 +1,26 @@
 import { qboRequest } from "./client";
+import { listExpenseAccounts } from "./accounts";
+import { getDefaultMiscAccount } from "@/lib/contabilidad/expense-category-rules";
 
 type PaymentType = "Cash" | "Check" | "CreditCard";
 
-let cachedExpenseAccountId: string | null = null;
 let cachedPaymentAccountId: string | null = null;
 
 /**
- * Cuenta de gasto (CATEGORÍA en QBO). Env: QBO_EXPENSE_CATEGORY_ACCOUNT_ID
- * o primera cuenta Expense; si no, nombre que contenga "gastos varios".
+ * Cuenta de gasto por defecto (fallback). Preferir expenseAccountId en cada gasto.
  */
 export async function getDefaultExpenseAccountId(): Promise<string> {
   const fromEnv = process.env.QBO_EXPENSE_CATEGORY_ACCOUNT_ID?.trim();
   if (fromEnv) return fromEnv;
-  if (cachedExpenseAccountId) return cachedExpenseAccountId;
 
-  const res = await qboRequest<{
-    QueryResponse?: { Account?: Array<{ Id: string; Name: string; AccountType: string }> };
-  }>({
-    path: "/v3/company/{realmId}/query",
-    query: {
-      query:
-        "SELECT Id, Name, AccountType FROM Account WHERE AccountType IN ('Expense', 'Other Expense') AND Active = true MAXRESULTS 100",
-    },
-  });
-
-  const accounts = res.QueryResponse?.Account ?? [];
-  const preferred = accounts.find((a) => /gastos?\s*varios/i.test(a.Name));
-  const picked = preferred ?? accounts[0];
-  if (!picked) {
+  const accounts = await listExpenseAccounts();
+  const misc = getDefaultMiscAccount(accounts);
+  if (!misc) {
     throw new Error(
       "No hay cuenta de gasto en QBO. Crea una (ej. gastos varios) o define QBO_EXPENSE_CATEGORY_ACCOUNT_ID."
     );
   }
-
-  cachedExpenseAccountId = picked.Id;
-  return picked.Id;
+  return misc.id;
 }
 
 /**
@@ -76,6 +62,8 @@ export interface CreateVendorExpenseInput {
   descripcion?: string;
   docType?: string;
   haciendaStatus?: string;
+  /** Cuenta de categoría en QBO (requerida para gastos correctos) */
+  expenseAccountId?: string;
 }
 
 export interface CreatedVendorExpense {
@@ -94,7 +82,7 @@ export async function createVendorExpense(
   input: CreateVendorExpenseInput
 ): Promise<CreatedVendorExpense> {
   const txnType = (process.env.QBO_EXPENSE_TXN_TYPE || "purchase").toLowerCase();
-  const expenseAccountId = await getDefaultExpenseAccountId();
+  const expenseAccountId = input.expenseAccountId || (await getDefaultExpenseAccountId());
   const txnDate = input.fecha.toISOString().slice(0, 10);
   const docNumber = input.consecutivo.slice(0, 21);
   const description =

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import { ExpenseInvoice, ExpenseSync } from "@/models";
 import { normalizeConsecutivo, parseExcelDateValue } from "@/lib/contabilidad/expense-excel";
+import { matchCategoryRule } from "@/lib/contabilidad/expense-category-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,8 @@ export async function POST(request: NextRequest) {
       const tax = parseNumber(mapping?.tax ? r[mapping.tax] : r["Impuesto"]);
       const total = parseNumber(mapping?.total ? r[mapping.total] : r["Total"]);
 
+      const matchedRule = matchCategoryRule(providerName);
+
       const baseSet: Record<string, unknown> = {
         docType,
         providerIdentification,
@@ -76,6 +79,7 @@ export async function POST(request: NextRequest) {
         total,
         raw: r,
         scrapedAt: new Date(),
+        ...(matchedRule ? { categoryAutoRule: matchedRule.id } : {}),
       };
 
       const syncNeeded = !/nota de credito/i.test(docType);
@@ -104,7 +108,18 @@ export async function POST(request: NextRequest) {
     for (const row of processedRows) {
       const existing = existingMap.get(row.key);
       if (existing) {
-        updateOps.push({ updateOne: { filter: { _id: existing._id }, update: { $set: row.baseSet } } });
+        const set = { ...row.baseSet };
+        if (existing.categorySource === "manual") {
+          delete set.qboCategoryAccountId;
+          delete set.qboCategoryAccountName;
+          delete set.categoryAutoRule;
+          delete set.categorySource;
+        } else {
+          set.qboCategoryAccountId = "";
+          set.qboCategoryAccountName = "";
+          set.categorySource = undefined;
+        }
+        updateOps.push({ updateOne: { filter: { _id: existing._id }, update: { $set: set } } });
         updated++;
       } else {
         insertItems.push(row);

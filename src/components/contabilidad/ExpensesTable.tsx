@@ -2,6 +2,13 @@
 
 import { AlertCircle } from "lucide-react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   EXPENSE_EXCEL_HEADERS,
   formatExpenseCell,
   type ExpenseExcelHeader,
@@ -10,8 +17,17 @@ import {
 
 type SyncStatus = "pending" | "syncing" | "synced" | "failed";
 
+export interface QBOCategoryOption {
+  id: string;
+  name: string;
+}
+
 interface ExpenseWithSync extends ExpenseRowLike {
   _id: string;
+  qboCategoryAccountId?: string;
+  qboCategoryAccountName?: string;
+  categoryAutoRule?: string;
+  categorySource?: "auto" | "manual";
   sync: {
     status: SyncStatus;
     qboInvoiceNumber?: string;
@@ -30,7 +46,7 @@ const STATUS_META: Record<
   failed: { label: "Falló", dot: "bg-red-400", text: "text-red-400" },
 };
 
-const COL_MIN_WIDTH: Partial<Record<ExpenseExcelHeader | "Estado QBO", string>> = {
+const COL_MIN_WIDTH: Partial<Record<ExpenseExcelHeader | "Categoría QBO" | "Estado QBO", string>> = {
   "Tipo de Documento": "min-w-[140px]",
   "Identificación Proveedor": "min-w-[115px]",
   "Nombre Proveedor": "min-w-[200px]",
@@ -42,6 +58,7 @@ const COL_MIN_WIDTH: Partial<Record<ExpenseExcelHeader | "Estado QBO", string>> 
   Moneda: "min-w-[65px]",
   Impuesto: "min-w-[90px]",
   Total: "min-w-[100px]",
+  "Categoría QBO": "min-w-[180px]",
   "Estado QBO": "min-w-[120px]",
 };
 
@@ -49,16 +66,22 @@ interface ExpensesTableProps {
   rows: ExpenseWithSync[];
   selected: Set<string>;
   selectableIds: string[];
+  categories: QBOCategoryOption[];
+  categoriesConnected: boolean;
   onToggleAll: () => void;
   onToggleOne: (id: string) => void;
+  onCategoryChange: (expenseId: string, accountId: string) => void;
 }
 
 export function ExpensesTable({
   rows,
   selected,
   selectableIds,
+  categories,
+  categoriesConnected,
   onToggleAll,
   onToggleOne,
+  onCategoryChange,
 }: ExpensesTableProps) {
   const allSelected =
     selectableIds.length > 0 && selected.size === selectableIds.length;
@@ -86,6 +109,11 @@ export function ExpensesTable({
               </th>
             ))}
             <th
+              className={`px-3 py-2.5 text-[10px] font-heading font-600 text-muted-foreground whitespace-nowrap ${COL_MIN_WIDTH["Categoría QBO"]}`}
+            >
+              Categoría QBO
+            </th>
+            <th
               className={`px-3 py-2.5 text-[10px] font-heading font-600 text-muted-foreground whitespace-nowrap ${COL_MIN_WIDTH["Estado QBO"]}`}
             >
               Estado QBO
@@ -98,6 +126,8 @@ export function ExpensesTable({
             const meta = STATUS_META[status];
             const isSelectable = status === "pending" || status === "failed";
             const isSelected = selected.has(row._id);
+            const isSynced = status === "synced";
+            const needsCategory = !row.qboCategoryAccountId && isSelectable;
 
             return (
               <tr
@@ -140,6 +170,45 @@ export function ExpensesTable({
                     </td>
                   );
                 })}
+                <td className={`px-3 py-2.5 ${COL_MIN_WIDTH["Categoría QBO"]}`}>
+                  {isSynced ? (
+                    <span className="text-[12px] text-muted-foreground truncate block max-w-[170px]" title={row.qboCategoryAccountName}>
+                      {row.qboCategoryAccountName || "—"}
+                    </span>
+                  ) : !categoriesConnected ? (
+                    <span className="text-[11px] text-yellow-400">Conecta QBO</span>
+                  ) : categories.length === 0 ? (
+                    <span className="text-[11px] text-muted-foreground">Sin cuentas</span>
+                  ) : (
+                    <div className="flex flex-col gap-0.5 min-w-[160px]">
+                      <Select
+                        value={row.qboCategoryAccountId || ""}
+                        onValueChange={(v) => onCategoryChange(row._id, v)}
+                      >
+                        <SelectTrigger
+                          className={`h-7 text-[11px] w-full max-w-[200px] ${
+                            needsCategory ? "border-yellow-500/60" : ""
+                          }`}
+                        >
+                          <SelectValue placeholder="Seleccionar…" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {row.categorySource === "auto" && row.qboCategoryAccountId && (
+                        <span className="text-[10px] text-blue-400">Auto</span>
+                      )}
+                      {needsCategory && (
+                        <span className="text-[10px] text-yellow-400">Requerida</span>
+                      )}
+                    </div>
+                  )}
+                </td>
                 <td className={`px-3 py-2.5 ${COL_MIN_WIDTH["Estado QBO"]}`}>
                   <div className="flex items-center gap-1.5">
                     <span className={`status-dot ${meta.dot}`} />

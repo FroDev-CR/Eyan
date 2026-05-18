@@ -13,6 +13,11 @@ export interface IExpenseInvoice extends Document {
   currency?: string;
   tax?: number;
   total?: number;
+  /** Cuenta de gasto en QBO (categoría) */
+  qboCategoryAccountId?: string;
+  qboCategoryAccountName?: string;
+  categoryAutoRule?: string;
+  categorySource?: "auto" | "manual";
   extras?: Record<string, unknown>;
   raw?: Record<string, unknown>;
   scrapedAt: Date;
@@ -32,6 +37,10 @@ const ExpenseInvoiceSchema = new Schema<IExpenseInvoice>(
     currency: { type: String, default: "CRC" },
     tax: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    qboCategoryAccountId: { type: String, default: "" },
+    qboCategoryAccountName: { type: String, default: "" },
+    categoryAutoRule: { type: String, default: "" },
+    categorySource: { type: String, enum: ["auto", "manual"] },
     extras: { type: Schema.Types.Mixed },
     raw: { type: Schema.Types.Mixed },
     scrapedAt: { type: Date, default: Date.now },

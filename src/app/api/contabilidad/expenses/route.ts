@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import { ExpenseInvoice, ExpenseSync } from "@/models";
+import { applyAutoCategoriesToPendingExpenses } from "@/lib/contabilidad/apply-expense-categories";
 
 // GET /api/contabilidad/expenses - Lista facturas de gastos cacheadas con estado sync (admin only)
 export async function GET(request: NextRequest) {
@@ -17,6 +18,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+
+    const skipAuto = searchParams.get("skipAuto") === "1";
+    if (!skipAuto) {
+      try {
+        await applyAutoCategoriesToPendingExpenses();
+      } catch (e) {
+        console.warn("[expenses] auto-categorize:", e);
+      }
+    }
 
     const filter: Record<string, unknown> = {};
     if (from || to) {

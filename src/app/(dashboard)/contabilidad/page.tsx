@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { ExpenseUpload } from "@/components/contabilidad/ExpenseUpload";
-import { ExpensesTable } from "@/components/contabilidad/ExpensesTable";
+import { ExpensesTable, type QBOCategoryOption } from "@/components/contabilidad/ExpensesTable";
 
 type SyncStatus = "pending" | "syncing" | "synced" | "failed";
 type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
@@ -119,6 +119,7 @@ function ContabilidadInner() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [showExpenseUpload, setShowExpenseUpload] = useState(false);
   const [isResettingExpenses, setIsResettingExpenses] = useState(false);
+  const [expenseCategories, setExpenseCategories] = useState<QBOCategoryOption[]>([]);
 
   // Detectar callback redirect (?qbo=connected|state-mismatch|...)
   useEffect(() => {
@@ -164,6 +165,18 @@ function ContabilidadInner() {
     }
   }, [statusFilter, areaFilter, toast]);
 
+  const fetchExpenseCategories = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contabilidad/expenses/categories");
+      const json = await res.json();
+      if (json.success && json.data?.accounts) {
+        setExpenseCategories(json.data.accounts);
+      }
+    } catch {
+      setExpenseCategories([]);
+    }
+  }, []);
+
   const fetchExpenses = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -176,11 +189,55 @@ function ContabilidadInner() {
     }
   }, [toast]);
 
+  const handleExpenseCategoryChange = useCallback(
+    async (expenseId: string, accountId: string) => {
+      try {
+        const res = await fetch("/api/contabilidad/expenses/category", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expenseId, qboCategoryAccountId: accountId }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Error al guardar categoría");
+
+        setExpenses((prev) =>
+          prev.map((e) =>
+            e._id === expenseId
+              ? {
+                  ...e,
+                  qboCategoryAccountId: json.data.qboCategoryAccountId,
+                  qboCategoryAccountName: json.data.qboCategoryAccountName,
+                  categorySource: "manual",
+                  categoryAutoRule: "",
+                }
+              : e
+          )
+        );
+      } catch (e) {
+        toast({
+          title: "Error",
+          description: e instanceof Error ? e.message : "Error",
+          variant: "destructive",
+        });
+      }
+    },
+    [toast]
+  );
+
   useEffect(() => {
     fetchQboStatus();
     if (view === "invoices") fetchInvoices();
-    else fetchExpenses();
-  }, [fetchInvoices, fetchQboStatus, fetchExpenses, view]);
+    else {
+      fetchExpenses();
+      fetchExpenseCategories();
+    }
+  }, [fetchInvoices, fetchQboStatus, fetchExpenses, fetchExpenseCategories, view]);
+
+  useEffect(() => {
+    if (qboStatus?.connected && view === "expenses") {
+      fetchExpenseCategories();
+    }
+  }, [qboStatus?.connected, view, fetchExpenseCategories]);
 
   const handleScrape = async () => {
     setIsScraping(true);
@@ -352,6 +409,21 @@ function ContabilidadInner() {
         ? `¿Crear ${selected.size} gasto(s) en QuickBooks Online?\n\nSe registrarán como Gastos (proveedor + categoría), no como facturas de venta.`
         : `¿Enviar ${selected.size} factura(s) a QuickBooks Online?`;
     if (!confirm(confirmMsg)) return;
+
+    if (view === "expenses") {
+      const missing = Array.from(selected).filter((id) => {
+        const row = expenses.find((e) => e._id === id);
+        return row && !row.qboCategoryAccountId;
+      });
+      if (missing.length > 0) {
+        toast({
+          title: "Falta categoría",
+          description: `${missing.length} gasto(s) sin categoría QBO. Asígnala en la columna «Categoría QBO» antes de enviar.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     setIsSyncing(true);
     try {
@@ -594,8 +666,11 @@ function ContabilidadInner() {
             rows={rows}
             selected={selected}
             selectableIds={selectableInvoices.map((i) => i._id)}
+            categories={expenseCategories}
+            categoriesConnected={!!qboStatus?.connected}
             onToggleAll={toggleAll}
             onToggleOne={toggleOne}
+            onCategoryChange={handleExpenseCategoryChange}
           />
           <div className="px-4 py-2.5 border-t border-border flex items-center justify-between">
             <p className="text-[11px] text-muted-foreground">
