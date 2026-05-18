@@ -6,6 +6,8 @@ import { ExpenseInvoice, ExpenseSync } from "@/models";
 import { loginAndFetchHome, downloadRecepcionesExcel } from "@/lib/scrapers/fen-receptions-http";
 import parseReceptionsExcel from "@/lib/scrapers/parse-receptions";
 
+export const runtime = 'nodejs';
+
 // POST /api/contabilidad/expenses/scrape - Scrapea reportes de Recepciones y guarda en DB
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -23,21 +25,26 @@ export async function POST(request: NextRequest) {
 
     const dl = await downloadRecepcionesExcel(jar, daysBack ?? 7);
     if (!dl.success || !dl.filePath) {
-      return NextResponse.json({ success: false, error: dl.error || 'No se pudo descargar' }, { status: 500 });
+      return NextResponse.json({ success: false, error: dl.error || 'No se pudo descargar', debug: dl.debug }, { status: 500 });
     }
 
     const { headers, rows } = parseReceptionsExcel(dl.filePath);
 
-    let created = 0;
-    let updated = 0;
+    const processedRows: Array<{ key: string; baseSet: Record<string, unknown>; syncNeeded: boolean }> = [];
+    const seenKeys = new Set<string>();
 
     for (const r of rows) {
-      // Map row fields to model
       const docType = String(r['Tipo de Documento'] || r['Tipo Documento'] || '').trim();
       if (!docType) continue;
       const providerIdentification = String(r['Identificación Proveedor'] || r['Identificacion Proveedor'] || r['Proveedor Identificación'] || '').trim();
       const providerName = String(r['Nombre Proveedor'] || r['Proveedor'] || '').trim();
       const consecutivo = String(r['Consecutivo Documento'] || r['Consecutivo'] || '').trim();
+      if (!consecutivo || !providerIdentification) continue;
+
+      const key = `${consecutivo}|${providerIdentification}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+
       const haciendaStatus = String(r['Respuesta Hacienda'] || '').trim();
       const documentDate = parseExcelDate(String(r['Fecha Documento'] || r['Fecha'] || ''));
       const responseDate = parseExcelDate(String(r['Fecha Respuesta'] || r['Fecha Respuesta'] || ''));
@@ -62,19 +69,76 @@ export async function POST(request: NextRequest) {
         scrapedAt: new Date(),
       };
 
-      const existing = await ExpenseInvoice.findOne({ consecutivo, providerIdentification });
+      const syncNeeded = !/nota de credito/i.test(docType);
+      processedRows.push({ key, baseSet, syncNeeded });
+    }
+
+    const filters = processedRows.map((item) => {
+      const [consecutivo, providerIdentification] = item.key.split("|");
+      return { consecutivo, providerIdentification };
+    });
+
+    const existingInvoices = filters.length
+      ? await ExpenseInvoice.find({ $or: filters })
+      : [];
+    const existingMap = new Map(existingInvoices.map((invoice) => [`${invoice.consecutivo}|${invoice.providerIdentification}`, invoice]));
+
+    const updateOps: any[] = [];
+    const insertItems: Array<{ key: string; baseSet: Record<string, unknown>; syncNeeded: boolean }> = [];
+    let created = 0;
+    let updated = 0;
+
+    for (const row of processedRows) {
+      const existing = existingMap.get(row.key);
       if (existing) {
-        await ExpenseInvoice.findOneAndUpdate({ _id: existing._id }, { $set: baseSet });
+        updateOps.push({ updateOne: { filter: { _id: existing._id }, update: { $set: row.baseSet } } });
         updated++;
       } else {
-        const doc = await ExpenseInvoice.create(baseSet as any);
+        insertItems.push(row);
         created++;
-        // Create pending sync for accepted documents (or all?) — create for non-credit notes
-        if (!/nota de credito/i.test(docType)) {
-          await ExpenseSync.create({ expenseInvoiceId: doc._id, status: 'pending', attempts: 0 });
-        }
       }
     }
+
+    if (updateOps.length) {
+      await ExpenseInvoice.bulkWrite(updateOps, { ordered: false });
+    }
+
+    const insertedInvoices = insertItems.length
+      ? await ExpenseInvoice.insertMany(insertItems.map((item) => item.baseSet as any), { ordered: false })
+      : [];
+
+    const syncPromises: Promise<unknown>[] = [];
+    for (const invoice of insertedInvoices) {
+      const matching = insertItems.find((item) => {
+        const key = `${invoice.consecutivo}|${invoice.providerIdentification}`;
+        return key === item.key && item.syncNeeded;
+      });
+      if (matching) {
+        syncPromises.push(
+          ExpenseSync.updateOne(
+            { expenseInvoiceId: invoice._id },
+            { $setOnInsert: { expenseInvoiceId: invoice._id, status: 'pending', attempts: 0 } },
+            { upsert: true }
+          )
+        );
+      }
+    }
+
+    for (const invoice of existingInvoices) {
+      const key = `${invoice.consecutivo}|${invoice.providerIdentification}`;
+      const row = processedRows.find((item) => item.key === key && item.syncNeeded);
+      if (row) {
+        syncPromises.push(
+          ExpenseSync.updateOne(
+            { expenseInvoiceId: invoice._id },
+            { $setOnInsert: { expenseInvoiceId: invoice._id, status: 'pending', attempts: 0 } },
+            { upsert: true }
+          )
+        );
+      }
+    }
+
+    await Promise.all(syncPromises);
 
     return NextResponse.json({ success: true, data: { created, updated, file: dl.filePath } });
   } catch (e) {

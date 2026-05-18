@@ -37,13 +37,15 @@ function getSetCookies(res: Response): string[] {
   return single ? [single] : [];
 }
 
+const DEFAULT_FEN_FETCH_TIMEOUT = 15000;
+
 async function fenFetch(
   url: string,
   jar: CookieJar,
   init: { method?: string; body?: URLSearchParams; referer?: string; redirect?: RequestRedirect; timeoutMs?: number } = {}
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeoutMs = init.timeoutMs ?? 30000;
+  const timeoutMs = init.timeoutMs ?? DEFAULT_FEN_FETCH_TIMEOUT;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -98,7 +100,7 @@ async function login(jar: CookieJar, debug: string[]): Promise<void> {
   }
 
   const loginUrl = `${FEN_BASE_URL}/index.php?r=login/login`;
-  await fenFetch(loginUrl, jar);
+  await fenFetch(loginUrl, jar, { timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT });
   debug.push(`Got PHPSESSID cookie`);
 
   const submit = async (cerrarSesion: boolean) => {
@@ -111,6 +113,7 @@ async function login(jar: CookieJar, debug: string[]): Promise<void> {
       method: "POST",
       body,
       referer: loginUrl,
+      timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT,
     });
   };
 
@@ -148,7 +151,7 @@ export async function loginAndFetchHome(): Promise<{ html: string; jar: CookieJa
   await login(jar, debug);
   // Home URL
   const homeUrl = `${FEN_BASE_URL}/index.php?r=inicio`;
-  const res = await fenFetch(homeUrl, jar, { referer: `${FEN_BASE_URL}/` });
+  const res = await fenFetch(homeUrl, jar, { referer: `${FEN_BASE_URL}/`, timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT });
   const html = await res.text();
   debug.push(`Fetched home ${homeUrl} status=${res.status}`);
   return { html, jar, debug };
@@ -160,7 +163,7 @@ export async function loginAndFetchHome(): Promise<{ html: string; jar: CookieJa
  */
 export async function fetchReportesPage(jar: CookieJar): Promise<{ html: string; url: string }> {
   const reportesUrl = `${FEN_BASE_URL}/index.php?r=reportes/buscarReportes`;
-  const res = await fenFetch(reportesUrl, jar, { referer: `${FEN_BASE_URL}/index.php?r=inicio` });
+  const res = await fenFetch(reportesUrl, jar, { referer: `${FEN_BASE_URL}/index.php?r=inicio`, timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT });
   const html = await res.text();
   return { html, url: reportesUrl };
 }
@@ -185,7 +188,7 @@ function formatYYYYMMDD(d: Date) {
 }
 
 async function tryDownloadUrl(url: string, jar: CookieJar) {
-  const res = await fenFetch(url, jar, { referer: `${FEN_BASE_URL}/index.php?r=reportes/buscarReportes`, redirect: "follow" });
+  const res = await fenFetch(url, jar, { referer: `${FEN_BASE_URL}/index.php?r=reportes/buscarReportes`, redirect: "follow", timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT });
   const buf = Buffer.from(await res.arrayBuffer());
   // Quick magic check for XLSX (zip PK)
   if (buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b) {
@@ -198,7 +201,7 @@ async function tryDownloadUrl(url: string, jar: CookieJar) {
 async function tryPostForExcel(url: string, jar: CookieJar, body: Record<string, string>) {
   const params = new URLSearchParams();
   for (const k of Object.keys(body)) params.set(k, body[k]);
-  const res = await fenFetch(url, jar, { method: "POST", body: params, referer: `${FEN_BASE_URL}/index.php?r=reportes/buscarReportes`, redirect: "follow" });
+  const res = await fenFetch(url, jar, { method: "POST", body: params, referer: `${FEN_BASE_URL}/index.php?r=reportes/buscarReportes`, redirect: "follow", timeoutMs: DEFAULT_FEN_FETCH_TIMEOUT });
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b) return buf;
   return null;
