@@ -23,6 +23,7 @@ import {
   Plug,
   Unplug,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { ExpenseUpload } from "@/components/contabilidad/ExpenseUpload";
@@ -116,6 +117,7 @@ function ContabilidadInner() {
   const [view, setView] = useState<"invoices" | "expenses">("invoices");
   const [expenses, setExpenses] = useState<any[]>([]);
   const [showExpenseUpload, setShowExpenseUpload] = useState(false);
+  const [isResettingExpenses, setIsResettingExpenses] = useState(false);
 
   // Detectar callback redirect (?qbo=connected|state-mismatch|...)
   useEffect(() => {
@@ -246,6 +248,46 @@ function ContabilidadInner() {
 
   const handleConnect = () => {
     window.location.href = "/api/contabilidad/qbo/connect";
+  };
+
+  const handleResetExpenses = async () => {
+    if (
+      !confirm(
+        "¿Borrar todos los gastos importados?\n\nSe eliminarán de la caché local (no afecta QuickBooks). Podrás volver a cargar el Excel."
+      )
+    ) {
+      return;
+    }
+
+    setIsResettingExpenses(true);
+    try {
+      const res = await fetch("/api/contabilidad/expenses/reset", {
+        method: "POST",
+      });
+
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || "Error al borrar gastos");
+      }
+
+      const count = json.data?.deletedInvoices ?? expenses.length;
+      toast({
+        title: "Gastos borrados",
+        description: `${count} registro${count === 1 ? "" : "s"} eliminado${count === 1 ? "" : "s"}. Carga el Excel de nuevo para ver los cambios.`,
+      });
+
+      setSelected(new Set());
+      setShowExpenseUpload(false);
+      await fetchExpenses();
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingExpenses(false);
+    }
   };
 
   const handleDisconnect = async () => {
@@ -412,6 +454,18 @@ function ContabilidadInner() {
               Cargar gastos
             </Button>
           )}
+          {view === "expenses" && expenses.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleResetExpenses}
+              disabled={isResettingExpenses}
+              className="h-8 text-xs"
+            >
+              <Trash2 className={`mr-1.5 h-3.5 w-3.5 ${isResettingExpenses ? "animate-pulse" : ""}`} />
+              {isResettingExpenses ? "Borrando..." : "Borrar gastos"}
+            </Button>
+          )}
           {qboStatus?.connected ? (
             <Button
               variant="outline"
@@ -473,8 +527,22 @@ function ContabilidadInner() {
             <SelectItem value="directo">Yobel directo</SelectItem>
           </SelectContent>
         </Select>
-        <div className="text-[11px] text-muted-foreground ml-auto">
-          {rows.length} registros en caché
+        <div className="flex items-center gap-3 ml-auto">
+          <span className="text-[11px] text-muted-foreground">
+            {rows.length} registros en caché
+          </span>
+          {view === "expenses" && rows.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetExpenses}
+              disabled={isResettingExpenses}
+              className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2"
+            >
+              <Trash2 className="mr-1 h-3 w-3" />
+              {isResettingExpenses ? "Borrando..." : "Vaciar caché"}
+            </Button>
+          )}
         </div>
       </div>
 
