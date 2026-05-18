@@ -24,6 +24,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+import { ExpenseUpload } from "@/components/contabilidad/ExpenseUpload";
 
 type SyncStatus = "pending" | "syncing" | "synced" | "failed";
 type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
@@ -113,7 +114,7 @@ function ContabilidadInner() {
   const { toast } = useToast();
   const [view, setView] = useState<"invoices" | "expenses">("invoices");
   const [expenses, setExpenses] = useState<any[]>([]);
-  const [isScrapingExpenses, setIsScrapingExpenses] = useState(false);
+  const [showExpenseUpload, setShowExpenseUpload] = useState(false);
 
   // Detectar callback redirect (?qbo=connected|state-mismatch|...)
   useEffect(() => {
@@ -209,46 +210,36 @@ function ContabilidadInner() {
     }
   };
 
-  const handleScrapeExpenses = async () => {
-    setIsScrapingExpenses(true);
+  const handleScrapeExpenses = () => {
+    setShowExpenseUpload(true);
+  };
+
+  const handleExpenseUploadSuccess = async (rows: any[]) => {
     try {
-      const res = await fetch(`/api/contabilidad/expenses/scrape`, {
+      const res = await fetch("/api/contabilidad/expenses/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ daysBack: Number(monthsBack) * 30 }),
+        body: JSON.stringify({ rows, mapping: {} }),
       });
 
-      let json: any;
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        json = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(`Respuesta inesperada del servidor: ${text}`);
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error || "Error al importar gastos");
       }
 
-      if (json.success) {
-        toast({
-          title: "Scrape completo",
-          description: `${json.data.created} gastos nuevos · ${json.data.updated} actualizados`,
-        });
-        fetchExpenses();
-      } else {
-        toast({
-          title: "Error al scrapear gastos",
-          description: json.error,
-          variant: "destructive",
-        });
-        if (json.debug) console.error("Expenses scrape debug:", json.debug);
-      }
+      toast({
+        title: "Gastos importados",
+        description: `${json.data.created} nuevos · ${json.data.updated} actualizados`,
+      });
+
+      setShowExpenseUpload(false);
+      fetchExpenses();
     } catch (e) {
       toast({
         title: "Error",
         description: e instanceof Error ? e.message : "Error desconocido",
         variant: "destructive",
       });
-    } finally {
-      setIsScrapingExpenses(false);
     }
   };
 

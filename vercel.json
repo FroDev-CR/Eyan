@@ -6,5 +6,12 @@
       "maxDuration": 60
     }
   },
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/contabilidad/expenses/scrape-worker",
+      "schedule": "*/1 * * * *"
+    }
+  ]
 }
+
