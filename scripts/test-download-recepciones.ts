@@ -1,9 +1,9 @@
 import dotenv from "dotenv";
+import * as mod from "../src/lib/scrapers/fen-receptions-http";
+
 dotenv.config({ path: ".env.local" });
 
 async function main() {
-  const raw = await import("../src/lib/scrapers/fen-receptions-http");
-  const mod = raw.default || raw;
   console.log('scraper module loaded:', Object.keys(mod));
   const { jar, debug } = await mod.loginAndFetchHome();
   console.log("login debug", debug.join(" | "));
