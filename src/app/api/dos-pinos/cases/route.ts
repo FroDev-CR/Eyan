@@ -3,6 +3,8 @@ import dbConnect from "@/lib/db";
 import DosPinosCase from "@/models/DosPinosCase";
 import "@/models/Driver";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     await dbConnect();

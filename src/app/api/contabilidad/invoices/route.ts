@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import { FENInvoice, InvoiceSync } from "@/models";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/contabilidad/invoices - Lista facturas FEN cacheadas con estado sync (admin only)
 export async function GET(request: NextRequest) {
   try {

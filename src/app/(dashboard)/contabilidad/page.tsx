@@ -528,10 +528,10 @@ function ContabilidadInner() {
 
           <div className="divide-y divide-border">
             {rows.map((inv: any, i: number) => {
-              const meta = STATUS_META[inv.sync.status];
+              const status = inv.sync?.status as SyncStatus;
+              const meta = STATUS_META[status];
               const isSelectable =
-                (inv.sync.status === "pending" ||
-                  inv.sync.status === "failed") &&
+                (status === "pending" || status === "failed") &&
                 !inv.anulado;
               const isSelected = selected.has(inv._id);
 
@@ -666,16 +666,17 @@ function AreaBadge({ inv }: { inv: any }) {
   const isYobel = identification === YOBEL_CEDULA;
 
   if (area) {
+    const areaKey = area as SubClienteArea;
     const styles: Record<SubClienteArea, string> = {
       Amanco: "bg-blue-500/15 text-blue-300 border-blue-500/30",
       "Kimberly Clark": "bg-purple-500/15 text-purple-300 border-purple-500/30",
       Otros: "bg-orange-500/15 text-orange-300 border-orange-500/30",
     };
-    const label = area === "Kimberly Clark" ? "KC" : area;
+    const label = areaKey === "Kimberly Clark" ? "KC" : areaKey;
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium ${styles[area]}`}
-        title={inv.ordenCompraNumero ? `OC ${area} ${inv.ordenCompraNumero}` : area}
+        className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-medium ${styles[areaKey]}`}
+        title={inv.ordenCompraNumero ? `OC ${areaKey} ${inv.ordenCompraNumero}` : areaKey}
       >
         {label}
       </span>
