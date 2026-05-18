@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         headers,
-        rows: rows.slice(0, 100), // Preview de primeras 100 filas
+        rows,
         totalRows: rows.length,
       },
     });

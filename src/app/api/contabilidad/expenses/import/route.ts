@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import { ExpenseInvoice, ExpenseSync } from "@/models";
+import { normalizeConsecutivo, parseExcelDateValue } from "@/lib/contabilidad/expense-excel";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,9 @@ export async function POST(request: NextRequest) {
           : r["Identificación Proveedor"] || r["Identificacion Proveedor"] || r["Proveedor Identificación"] || ""
       ).trim();
 
-      const consecutivo = String(
+      const consecutivo = normalizeConsecutivo(
         mapping?.consecutivo ? r[mapping.consecutivo] : r["Consecutivo Documento"] || r["Consecutivo"] || ""
-      ).trim();
+      );
 
       if (!consecutivo || !providerIdentification) continue;
 
@@ -50,11 +51,11 @@ export async function POST(request: NextRequest) {
         mapping?.providerName ? r[mapping.providerName] : r["Nombre Proveedor"] || r["Proveedor"] || ""
       ).trim();
       const haciendaStatus = String(mapping?.haciendaStatus ? r[mapping.haciendaStatus] : r["Respuesta Hacienda"] || "").trim();
-      const documentDate = parseExcelDate(
-        String(mapping?.documentDate ? r[mapping.documentDate] : r["Fecha Documento"] || r["Fecha"] || "")
+      const documentDate = parseExcelDateValue(
+        mapping?.documentDate ? r[mapping.documentDate] : r["Fecha Documento"] || r["Fecha"]
       );
-      const responseDate = parseExcelDate(
-        String(mapping?.responseDate ? r[mapping.responseDate] : r["Fecha Respuesta"] || "")
+      const responseDate = parseExcelDateValue(
+        mapping?.responseDate ? r[mapping.responseDate] : r["Fecha Respuesta"]
       );
       const clientResponse = String(mapping?.clientResponse ? r[mapping.clientResponse] : r["Respuesta Cliente"] || "").trim();
       const currency = String(mapping?.currency ? r[mapping.currency] : r["Moneda"] || "CRC").trim();
@@ -166,15 +167,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function parseExcelDate(s: string): Date | undefined {
-  if (!s) return undefined;
-  const m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00`);
-  const m2 = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m2) return new Date(`${m2[1]}-${m2[2]}-${m2[3]}T00:00:00`);
-  return undefined;
 }
 
 function parseNumber(v: unknown): number {

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { ExpenseUpload } from "@/components/contabilidad/ExpenseUpload";
+import { ExpensesTable } from "@/components/contabilidad/ExpensesTable";
 
 type SyncStatus = "pending" | "syncing" | "synced" | "failed";
 type SubClienteArea = "Amanco" | "Kimberly Clark" | "Otros";
@@ -515,18 +516,20 @@ function ContabilidadInner() {
             <SelectItem value="failed">Falladas</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={areaFilter} onValueChange={setAreaFilter}>
-          <SelectTrigger className="w-[180px] h-8 text-xs">
-            <SelectValue placeholder="Área Yobel" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las áreas</SelectItem>
-            <SelectItem value="Amanco">Amanco</SelectItem>
-            <SelectItem value="Kimberly Clark">Kimberly Clark</SelectItem>
-            <SelectItem value="Otros">Otros (WHL)</SelectItem>
-            <SelectItem value="directo">Yobel directo</SelectItem>
-          </SelectContent>
-        </Select>
+        {view === "invoices" && (
+          <Select value={areaFilter} onValueChange={setAreaFilter}>
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue placeholder="Área Yobel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las áreas</SelectItem>
+              <SelectItem value="Amanco">Amanco</SelectItem>
+              <SelectItem value="Kimberly Clark">Kimberly Clark</SelectItem>
+              <SelectItem value="Otros">Otros (WHL)</SelectItem>
+              <SelectItem value="directo">Yobel directo</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex items-center gap-3 ml-auto">
           <span className="text-[11px] text-muted-foreground">
             {rows.length} registros en caché
@@ -575,6 +578,36 @@ function ContabilidadInner() {
             )
           }
         />
+      ) : view === "expenses" ? (
+        <div
+          className="rounded-lg overflow-hidden"
+          style={{ backgroundColor: "var(--color-surface)" }}
+        >
+          <ExpensesTable
+            rows={rows}
+            selected={selected}
+            selectableIds={selectableInvoices.map((i) => i._id)}
+            onToggleAll={toggleAll}
+            onToggleOne={toggleOne}
+          />
+          <div className="px-4 py-2.5 border-t border-border flex items-center justify-between">
+            <p className="text-[11px] text-muted-foreground">
+              {rows.length} registros · {selected.size} seleccionados
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              QBO:{" "}
+              {qboStatus?.connected ? (
+                <span className="text-emerald-400">
+                  conectado ({qboStatus.environment})
+                </span>
+              ) : qboStatus?.refreshExpired ? (
+                <span className="text-red-400">expirado — reconecta</span>
+              ) : (
+                <span className="text-yellow-400">no conectado</span>
+              )}
+            </p>
+          </div>
+        </div>
       ) : (
         <div
           className="rounded-lg overflow-hidden"
