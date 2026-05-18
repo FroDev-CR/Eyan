@@ -479,12 +479,16 @@ function ContabilidadInner() {
       </div>
 
       {/* Table */}
-      {showExpenseUpload && view === "expenses" ? (
-        <ExpenseUpload
-          onSuccess={handleExpenseUploadSuccess}
-          onCancel={() => setShowExpenseUpload(false)}
-        />
-      ) : rows.length === 0 ? (
+      {showExpenseUpload && view === "expenses" && (
+        <div className="mb-6">
+          <ExpenseUpload
+            onSuccess={handleExpenseUploadSuccess}
+            onCancel={() => setShowExpenseUpload(false)}
+          />
+        </div>
+      )}
+
+      {rows.length === 0 && !showExpenseUpload ? (
         <EmptyState
           icon={Receipt}
           title={view === 'invoices' ? "Sin facturas" : "Sin gastos"}
