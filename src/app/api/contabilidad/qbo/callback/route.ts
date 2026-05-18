@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 }
 
 function redirectToContabilidad(request: NextRequest, status: string): NextResponse {
-  const url = new URL("/contabilidad", request.url);
+  const url = new URL("/settings", request.url);
   url.searchParams.set("qbo", status);
   return NextResponse.redirect(url);
 }

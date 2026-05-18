@@ -16,51 +16,40 @@ export interface ExpenseCategoryRule {
 /**
  * Reglas de categorización automática.
  * Orden importa: la primera coincidencia gana.
+ * Lo que no coincida → selección manual en la UI.
  */
 export const EXPENSE_CATEGORY_RULES: ExpenseCategoryRule[] = [
   {
-    id: "gasolina",
-    label: "Gasolina",
+    id: "combustible",
+    label: "Combustible",
     keywords: [
       "servicentro",
       "servicio centro",
+      "gasolineria",
+      "gasolinera",
       "estacion de servicio",
       "estación de servicio",
-      "gasolinera",
       "delta",
       "terpel",
       "recope",
       "combustible",
       "fuel",
     ],
-    accountPatterns: [/gasolina/i, /combustible/i, /fuel/i],
+    accountPatterns: [/combustible/i, /gasolina/i, /fuel/i],
   },
   {
-    id: "baticos",
-    label: "Baticos",
+    id: "telefonos",
+    label: "Teléfonos",
     keywords: [
-      "comida",
-      "soda",
-      "restaurante",
-      "restaurantes",
-      "cafeteria",
-      "cafetería",
-      "pizza",
-      "burger",
-      "hamburguesa",
-      "pollo",
-      "soda",
-      "refresco",
-      "bar",
-      "cantina",
-      "bakery",
-      "panaderia",
-      "panadería",
-      "mcdonald",
-      "kfc",
-      "subway",
+      "claro",
+      "telecomunicaciones",
+      "telecom",
+      "movistar",
+      "kolbi",
+      "liberty",
+      "ice telecom",
     ],
-    accountPatterns: [/batico/i, /viatico/i, /víatico/i, /refrigerio/i, /alimentaci/i],
+    accountPatterns: [/telefono/i, /teléfono/i, /telecom/i, /comunicacion/i, /comunicación/i],
   },
 ];
 

@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingPage } from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,7 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  Plug,
-  Unplug,
+  Settings,
   Upload,
   Trash2,
 } from "lucide-react";
@@ -121,24 +121,13 @@ function ContabilidadInner() {
   const [isResettingExpenses, setIsResettingExpenses] = useState(false);
   const [expenseCategories, setExpenseCategories] = useState<QBOCategoryOption[]>([]);
 
-  // Detectar callback redirect (?qbo=connected|state-mismatch|...)
+  // OAuth callback legado → redirigir a Configuración
   useEffect(() => {
     const qboParam = searchParams.get("qbo");
-    if (!qboParam) return;
-
-    if (qboParam === "connected") {
-      toast({ title: "QBO conectado", description: "Conexión exitosa con QuickBooks Online" });
-    } else if (qboParam === "state-mismatch") {
-      toast({ title: "Error CSRF", description: "State mismatch en OAuth", variant: "destructive" });
-    } else if (qboParam.startsWith("exchange-failed")) {
-      toast({ title: "Error OAuth", description: decodeURIComponent(qboParam), variant: "destructive" });
-    } else {
-      toast({ title: "QBO callback", description: qboParam, variant: "destructive" });
+    if (qboParam) {
+      window.location.replace(`/settings?qbo=${encodeURIComponent(qboParam)}`);
     }
-
-    // Limpiar query param
-    window.history.replaceState({}, "", "/contabilidad");
-  }, [searchParams, toast]);
+  }, [searchParams]);
 
   const fetchQboStatus = useCallback(async () => {
     try {
@@ -304,10 +293,6 @@ function ContabilidadInner() {
     }
   };
 
-  const handleConnect = () => {
-    window.location.href = "/api/contabilidad/qbo/connect";
-  };
-
   const handleResetExpenses = async () => {
     if (
       !confirm(
@@ -348,27 +333,6 @@ function ContabilidadInner() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm("¿Desconectar QBO? Tendrás que reautorizar para volver a sincronizar.")) return;
-
-    try {
-      const res = await fetch("/api/contabilidad/qbo/disconnect", { method: "POST" });
-      const json = await res.json();
-      if (json.success) {
-        toast({ title: "QBO desconectado" });
-        fetchQboStatus();
-      } else {
-        toast({ title: "Error", description: json.error, variant: "destructive" });
-      }
-    } catch (e) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Error",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Seleccionables: pendientes + falladas (retry), no anuladas
   const selectableInvoices = useMemo(() => {
     const rows = view === "invoices" ? invoices : expenses;
@@ -398,7 +362,7 @@ function ContabilidadInner() {
     if (!qboStatus?.connected) {
       toast({
         title: "QBO no conectado",
-        description: "Conecta QuickBooks Online primero",
+        description: "Conecta QuickBooks en Configuración → QuickBooks Online",
         variant: "destructive",
       });
       return;
@@ -546,25 +510,12 @@ function ContabilidadInner() {
               {isResettingExpenses ? "Borrando..." : "Borrar gastos"}
             </Button>
           )}
-          {qboStatus?.connected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDisconnect}
-              className="h-8 text-xs"
-            >
-              <Unplug className="mr-1.5 h-3.5 w-3.5" />
-              Desconectar QBO
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleConnect}
-              className="h-8 text-xs"
-            >
-              <Plug className="mr-1.5 h-3.5 w-3.5" />
-              Conectar QBO
+          {!qboStatus?.connected && (
+            <Button variant="outline" size="sm" asChild className="h-8 text-xs">
+              <Link href="/settings">
+                <Settings className="mr-1.5 h-3.5 w-3.5" />
+                Configurar QBO
+              </Link>
             </Button>
           )}
           <Button

@@ -176,7 +176,7 @@ export function ExpensesTable({
                       {row.qboCategoryAccountName || "—"}
                     </span>
                   ) : !categoriesConnected ? (
-                    <span className="text-[11px] text-yellow-400">Conecta QBO</span>
+                    <span className="text-[11px] text-yellow-400">Configura QBO en Ajustes</span>
                   ) : categories.length === 0 ? (
                     <span className="text-[11px] text-muted-foreground">Sin cuentas</span>
                   ) : (
