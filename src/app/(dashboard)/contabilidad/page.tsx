@@ -209,6 +209,40 @@ function ContabilidadInner() {
     }
   };
 
+  const handleScrapeExpenses = async () => {
+    setIsScrapingExpenses(true);
+    try {
+      const res = await fetch(`/api/contabilidad/expenses/scrape`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daysBack: Number(monthsBack) * 30 }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast({
+          title: "Scrape completo",
+          description: `${json.data.created} gastos nuevos · ${json.data.updated} actualizados`,
+        });
+        fetchExpenses();
+      } else {
+        toast({
+          title: "Error al scrapear gastos",
+          description: json.error,
+          variant: "destructive",
+        });
+        if (json.debug) console.error("Expenses scrape debug:", json.debug);
+      }
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScrapingExpenses(false);
+    }
+  };
+
   const handleConnect = () => {
     window.location.href = "/api/contabilidad/qbo/connect";
   };
