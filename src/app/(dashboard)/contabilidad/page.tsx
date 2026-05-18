@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Plug,
   Unplug,
+  Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { ExpenseUpload } from "@/components/contabilidad/ExpenseUpload";
@@ -405,11 +406,10 @@ function ContabilidadInner() {
               variant="outline"
               size="sm"
               onClick={handleScrapeExpenses}
-              disabled={isScrapingExpenses}
               className="h-8 text-xs"
             >
-              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScrapingExpenses ? "animate-spin" : ""}`} />
-              {isScrapingExpenses ? "Scrapeando..." : "Scrape Recepciones"}
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              Cargar gastos
             </Button>
           )}
           {qboStatus?.connected ? (
@@ -479,11 +479,16 @@ function ContabilidadInner() {
       </div>
 
       {/* Table */}
-      {rows.length === 0 ? (
+      {showExpenseUpload && view === "expenses" ? (
+        <ExpenseUpload
+          onSuccess={handleExpenseUploadSuccess}
+          onCancel={() => setShowExpenseUpload(false)}
+        />
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={Receipt}
           title={view === 'invoices' ? "Sin facturas" : "Sin gastos"}
-          description={view === 'invoices' ? 'Presiona "Scrape FEN" para traer facturas de facturaenlanube.com' : 'Presiona "Scrape Recepciones" para traer gastos (Recepciones)'}
+          description={view === 'invoices' ? 'Presiona "Scrape FEN" para traer facturas de facturaenlanube.com' : 'Carga un Excel con los gastos (Recepciones)'}
           action={
             view === 'invoices' ? (
               <Button onClick={handleScrape} disabled={isScraping} size="sm">
@@ -491,9 +496,9 @@ function ContabilidadInner() {
                 {isScraping ? "Scrapeando..." : "Scrape FEN"}
               </Button>
             ) : (
-              <Button onClick={handleScrapeExpenses} disabled={isScrapingExpenses} size="sm">
-                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScrapingExpenses ? "animate-spin" : ""}`} />
-                {isScrapingExpenses ? "Scrapeando..." : "Scrape Recepciones"}
+              <Button onClick={handleScrapeExpenses} size="sm">
+                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                Cargar Excel
               </Button>
             )
           }
