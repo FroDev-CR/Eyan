@@ -10,6 +10,8 @@ export { default as FENCustomer } from "./FENCustomer";
 export { default as QBOConnection } from "./QBOConnection";
 export { default as InvoiceSync } from "./InvoiceSync";
 export { default as CustomerSync } from "./CustomerSync";
+export { default as ExpenseInvoice } from "./ExpenseInvoice";
+export { default as ExpenseSync } from "./ExpenseSync";
 
 export type { IUser } from "./User";
 export type { IDriver } from "./Driver";
@@ -23,3 +25,5 @@ export type { IFENCustomer } from "./FENCustomer";
 export type { IQBOConnection } from "./QBOConnection";
 export type { IInvoiceSync, InvoiceSyncStatus } from "./InvoiceSync";
 export type { ICustomerSync } from "./CustomerSync";
+export type { IExpenseInvoice } from "./ExpenseInvoice";
+export type { IExpenseSync, ExpenseSyncStatus } from "./ExpenseSync";

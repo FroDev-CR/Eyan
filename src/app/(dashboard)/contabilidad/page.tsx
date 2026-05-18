@@ -111,6 +111,9 @@ function ContabilidadInner() {
   const [monthsBack, setMonthsBack] = useState<string>("1");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const [view, setView] = useState<"invoices" | "expenses">("invoices");
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [isScrapingExpenses, setIsScrapingExpenses] = useState(false);
 
   // Detectar callback redirect (?qbo=connected|state-mismatch|...)
   useEffect(() => {
@@ -156,10 +159,23 @@ function ContabilidadInner() {
     }
   }, [statusFilter, areaFilter, toast]);
 
+  const fetchExpenses = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/contabilidad/expenses`);
+      const json = await res.json();
+      if (json.success) setExpenses(json.data);
+      else toast({ title: "Error", description: json.error, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    fetchInvoices();
     fetchQboStatus();
-  }, [fetchInvoices, fetchQboStatus]);
+    if (view === "invoices") fetchInvoices();
+    else fetchExpenses();
+  }, [fetchInvoices, fetchQboStatus, fetchExpenses, view]);
 
   const handleScrape = async () => {
     setIsScraping(true);
@@ -219,15 +235,10 @@ function ContabilidadInner() {
   };
 
   // Seleccionables: pendientes + falladas (retry), no anuladas
-  const selectableInvoices = useMemo(
-    () =>
-      invoices.filter(
-        (i) =>
-          (i.sync.status === "pending" || i.sync.status === "failed") &&
-          !i.anulado
-      ),
-    [invoices]
-  );
+  const selectableInvoices = useMemo(() => {
+    const rows = view === "invoices" ? invoices : expenses;
+    return rows.filter((i: any) => (i.sync?.status === "pending" || i.sync?.status === "failed") && !i.anulado);
+  }, [invoices, expenses, view]);
 
   const toggleAll = () => {
     if (selected.size === selectableInvoices.length && selected.size > 0) {
@@ -262,10 +273,12 @@ function ContabilidadInner() {
 
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/contabilidad/sync", {
+      const endpoint = view === "invoices" ? "/api/contabilidad/sync" : "/api/contabilidad/expenses/sync";
+      const body = view === "invoices" ? { invoiceIds: Array.from(selected) } : { expenseIds: Array.from(selected) };
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceIds: Array.from(selected) }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.success) {
@@ -275,7 +288,7 @@ function ContabilidadInner() {
           variant: json.data.failed > 0 ? "destructive" : "default",
         });
         setSelected(new Set());
-        fetchInvoices();
+        if (view === "invoices") fetchInvoices(); else fetchExpenses();
       } else {
         toast({
           title: "Error",
@@ -295,14 +308,17 @@ function ContabilidadInner() {
   };
 
   const stats = useMemo(() => {
-    const pending = invoices.filter((i) => i.sync.status === "pending" && !i.anulado).length;
-    const synced = invoices.filter((i) => i.sync.status === "synced").length;
-    const failed = invoices.filter((i) => i.sync.status === "failed").length;
-    const anuladas = invoices.filter((i) => i.anulado).length;
+    const rows = view === "invoices" ? invoices : expenses;
+    const pending = rows.filter((i: any) => i.sync?.status === "pending" && !i.anulado).length;
+    const synced = rows.filter((i: any) => i.sync?.status === "synced").length;
+    const failed = rows.filter((i: any) => i.sync?.status === "failed").length;
+    const anuladas = rows.filter((i: any) => i.anulado).length;
     return { pending, synced, failed, anuladas };
-  }, [invoices]);
+  }, [invoices, expenses, view]);
 
   if (isLoading) return <LoadingPage />;
+
+  const rows = view === "invoices" ? invoices : expenses;
 
   return (
     <div className="flex flex-col gap-5">
@@ -312,6 +328,10 @@ function ContabilidadInner() {
           <h1 className="font-heading font-700 text-[22px] tracking-tight text-foreground leading-none">
             Contabilidad
           </h1>
+          <div className="mt-2">
+            <button className={`px-3 py-1 rounded-md mr-2 ${view === 'invoices' ? 'bg-primary text-white' : 'bg-muted/10'}`} onClick={() => setView('invoices')}>Facturas de clientes</button>
+            <button className={`px-3 py-1 rounded-md ${view === 'expenses' ? 'bg-primary text-white' : 'bg-muted/10'}`} onClick={() => setView('expenses')}>Gastos de la empresa</button>
+          </div>
           <div className="flex items-center gap-4 mt-2 flex-wrap">
             <StatPill label="pendientes" count={stats.pending} color="bg-yellow-400" />
             <StatPill label="enviadas" count={stats.synced} color="bg-emerald-400" />
@@ -335,16 +355,29 @@ function ContabilidadInner() {
               <SelectItem value="6">6 meses</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleScrape}
-            disabled={isScraping}
-            className="h-8 text-xs"
-          >
-            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScraping ? "animate-spin" : ""}`} />
-            {isScraping ? "Scrapeando..." : "Scrape FEN"}
-          </Button>
+          {view === "invoices" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleScrape}
+              disabled={isScraping}
+              className="h-8 text-xs"
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScraping ? "animate-spin" : ""}`} />
+              {isScraping ? "Scrapeando..." : "Scrape FEN"}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleScrapeExpenses}
+              disabled={isScrapingExpenses}
+              className="h-8 text-xs"
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScrapingExpenses ? "animate-spin" : ""}`} />
+              {isScrapingExpenses ? "Scrapeando..." : "Scrape Recepciones"}
+            </Button>
+          )}
           {qboStatus?.connected ? (
             <Button
               variant="outline"
@@ -407,21 +440,28 @@ function ContabilidadInner() {
           </SelectContent>
         </Select>
         <div className="text-[11px] text-muted-foreground ml-auto">
-          {invoices.length} facturas en caché
+          {rows.length} registros en caché
         </div>
       </div>
 
       {/* Table */}
-      {invoices.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
           icon={Receipt}
-          title="Sin facturas"
-          description='Presiona "Scrape FEN" para traer facturas de facturaenlanube.com'
+          title={view === 'invoices' ? "Sin facturas" : "Sin gastos"}
+          description={view === 'invoices' ? 'Presiona "Scrape FEN" para traer facturas de facturaenlanube.com' : 'Presiona "Scrape Recepciones" para traer gastos (Recepciones)'}
           action={
-            <Button onClick={handleScrape} disabled={isScraping} size="sm">
-              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScraping ? "animate-spin" : ""}`} />
-              {isScraping ? "Scrapeando..." : "Scrape FEN"}
-            </Button>
+            view === 'invoices' ? (
+              <Button onClick={handleScrape} disabled={isScraping} size="sm">
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScraping ? "animate-spin" : ""}`} />
+                {isScraping ? "Scrapeando..." : "Scrape FEN"}
+              </Button>
+            ) : (
+              <Button onClick={handleScrapeExpenses} disabled={isScrapingExpenses} size="sm">
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isScrapingExpenses ? "animate-spin" : ""}`} />
+                {isScrapingExpenses ? "Scrapeando..." : "Scrape Recepciones"}
+              </Button>
+            )
           }
         />
       ) : (
@@ -453,7 +493,7 @@ function ContabilidadInner() {
           </div>
 
           <div className="divide-y divide-border">
-            {invoices.map((inv, i) => {
+            {rows.map((inv: any, i: number) => {
               const meta = STATUS_META[inv.sync.status];
               const isSelectable =
                 (inv.sync.status === "pending" ||
@@ -486,13 +526,13 @@ function ContabilidadInner() {
 
                   <div className="px-3 py-3">
                     <span className="text-[12px] text-muted-foreground">
-                      {formatDate(inv.fecha)}
+                      {formatDate(inv.fecha || inv.documentDate)}
                     </span>
                   </div>
 
                   <div className="px-3 py-3 min-w-0">
                     <p className="text-[13px] font-medium text-foreground truncate">
-                      {inv.clienteName}
+                      {inv.clienteName || inv.providerName}
                     </p>
                     {inv.anulado && (
                       <p className="text-[10px] text-red-400 font-medium mt-0.5">ANULADA</p>
@@ -505,17 +545,17 @@ function ContabilidadInner() {
 
                   <div className="px-3 py-3">
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      {inv.identification}
+                      {inv.identification || inv.providerIdentification}
                     </span>
                   </div>
 
                   <div className="px-3 py-3">
                     <div className="text-[13px] font-medium text-foreground tabular-nums">
-                      {formatCurrency(inv.monto, inv.moneda)}
+                      {formatCurrency(inv.monto || inv.total, inv.moneda || inv.currency)}
                     </div>
-                    {inv.saldo > 0 && inv.saldo !== inv.monto && (
+                    {inv.saldo > 0 && inv.saldo !== (inv.monto || inv.total) && (
                       <div className="text-[10px] text-yellow-400 tabular-nums mt-0.5">
-                        Saldo: {formatCurrency(inv.saldo, inv.moneda)}
+                        Saldo: {formatCurrency(inv.saldo, inv.moneda || inv.currency)}
                       </div>
                     )}
                   </div>
@@ -557,7 +597,7 @@ function ContabilidadInner() {
 
           <div className="px-4 py-2.5 border-t border-border flex items-center justify-between">
             <p className="text-[11px] text-muted-foreground">
-              {invoices.length} facturas · {selected.size} seleccionadas
+              {rows.length} registros · {selected.size} seleccionadas
             </p>
             <p className="text-[11px] text-muted-foreground">
               QBO:{" "}
@@ -586,9 +626,10 @@ export default function ContabilidadPage() {
   );
 }
 
-function AreaBadge({ inv }: { inv: FENInvoiceWithSync }) {
+function AreaBadge({ inv }: { inv: any }) {
   const area = inv.subClienteArea;
-  const isYobel = inv.identification === YOBEL_CEDULA;
+  const identification = inv.identification || inv.providerIdentification;
+  const isYobel = identification === YOBEL_CEDULA;
 
   if (area) {
     const styles: Record<SubClienteArea, string> = {
