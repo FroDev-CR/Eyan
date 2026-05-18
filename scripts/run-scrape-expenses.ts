@@ -16,8 +16,8 @@ async function main() {
     console.log("Login debug:", loginDebug.join(" | "));
     console.log("Descargando Recepciones (7 días)...");
     const dl = await downloadRecepcionesExcel(jar, 7);
-    if (!dl.success) {
-      console.error("No se pudo descargar:", dl.error);
+    if (!dl.success || !dl.filePath) {
+      console.error("No se pudo descargar:", dl.error || "No se obtuvo ruta de archivo");
       process.exit(1);
     }
 
