@@ -40,23 +40,32 @@ function getSetCookies(res: Response): string[] {
 async function fenFetch(
   url: string,
   jar: CookieJar,
-  init: { method?: string; body?: URLSearchParams; referer?: string; redirect?: RequestRedirect } = {}
+  init: { method?: string; body?: URLSearchParams; referer?: string; redirect?: RequestRedirect; timeoutMs?: number } = {}
 ): Promise<Response> {
-  const res = await fetch(url, {
-    method: init.method || "GET",
-    redirect: init.redirect || "manual",
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "es-CR,es;q=0.9,en;q=0.8",
-      "Content-Type": init.body ? "application/x-www-form-urlencoded" : "",
-      ...(init.referer ? { Referer: init.referer } : {}),
-      ...(jar.header() ? { Cookie: jar.header() } : {}),
-    },
-    body: init.body ? init.body.toString() : undefined,
-  });
-  jar.ingest(getSetCookies(res));
-  return res;
+  const controller = new AbortController();
+  const timeoutMs = init.timeoutMs ?? 30000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: init.method || "GET",
+      redirect: init.redirect || "manual",
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-CR,es;q=0.9,en;q=0.8",
+        "Content-Type": init.body ? "application/x-www-form-urlencoded" : "",
+        ...(init.referer ? { Referer: init.referer } : {}),
+        ...(jar.header() ? { Cookie: jar.header() } : {}),
+      },
+      body: init.body ? init.body.toString() : undefined,
+      signal: controller.signal,
+    });
+    jar.ingest(getSetCookies(res));
+    return res;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function followRedirects(
@@ -357,7 +366,8 @@ export async function downloadRecepcionesExcel(jar: CookieJar, daysBack = 7): Pr
 function saveBufferAsExcel(buf: Buffer, prefix: string) {
   const pathMod = require('path');
   const fsMod = require('fs');
-  const docsDir = pathMod.join(process.cwd(), 'docs');
+  const tmpDir = process.env.TMPDIR || process.env.TEMP || process.env.TMP || pathMod.join(process.cwd(), 'tmp');
+  const docsDir = pathMod.join(tmpDir, 'docs');
   fsMod.mkdirSync(docsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const name = `${prefix}_${stamp}.xlsx`;

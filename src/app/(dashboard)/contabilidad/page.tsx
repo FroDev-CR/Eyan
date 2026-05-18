@@ -217,7 +217,16 @@ function ContabilidadInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ daysBack: Number(monthsBack) * 30 }),
       });
-      const json = await res.json();
+
+      let json: any;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        json = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Respuesta inesperada del servidor: ${text}`);
+      }
+
       if (json.success) {
         toast({
           title: "Scrape completo",
