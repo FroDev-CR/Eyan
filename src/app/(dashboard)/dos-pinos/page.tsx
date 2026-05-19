@@ -20,6 +20,7 @@ import {
   RefreshCw,
   UserPlus,
   Trash2,
+  MapPin,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { AssignDriverModal } from "@/components/dos-pinos/AssignDriverModal";
@@ -351,6 +352,14 @@ export default function DosPinosCasesPage() {
                     <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                       {c.accountName}
                     </p>
+                    {c.clientAddress ? (
+                      <div className="flex items-start gap-1 mt-1.5 text-[11px] text-muted-foreground">
+                        <MapPin className="h-3 w-3 shrink-0 mt-0.5 opacity-70" />
+                        <span className="leading-snug line-clamp-2" title={c.clientAddress}>
+                          {c.clientAddress}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* EYAN status */}

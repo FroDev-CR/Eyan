@@ -6,6 +6,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  VISIT_RESULT_OPTIONS,
+  parseStoredVisitResult,
+  resolveVisitResultValue,
+} from "@/constants/dos-pinos-report";
 import { LoadingPage } from "@/components/shared/LoadingSpinner";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
@@ -27,7 +39,8 @@ export default function CaseReportPage() {
   const [resultado, setResultado] = useState<"completed" | "failed" | "">("");
   const [tipoEquipo, setTipoEquipo] = useState("");
   const [lugarDeCarga, setLugarDeCarga] = useState("");
-  const [movementType, setMovementType] = useState("");
+  const [visitResultPreset, setVisitResultPreset] = useState("");
+  const [visitResultCustom, setVisitResultCustom] = useState("");
   const [distanciaPDV, setDistanciaPDV] = useState("");
   const [comentarioAdicional, setComentarioAdicional] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -41,7 +54,9 @@ export default function CaseReportPage() {
           setCaseData(d);
           setTipoEquipo(d.tipoEquipo ?? "");
           setLugarDeCarga(d.lugarDeCarga ?? "");
-          setMovementType(d.movementType ?? "");
+          const parsed = parseStoredVisitResult(d.movementType);
+          setVisitResultPreset(parsed.preset);
+          setVisitResultCustom(parsed.customText);
           setDistanciaPDV(d.distanciaPDV ?? "");
           setComentarioAdicional(d.comentarioAdicional ?? d.notes ?? "");
         }
@@ -54,6 +69,25 @@ export default function CaseReportPage() {
       toast({ title: "Falta resultado", description: "Marca Completado o Fallido.", variant: "destructive" });
       return;
     }
+
+    const movementType = resolveVisitResultValue(visitResultPreset, visitResultCustom);
+    if (!movementType) {
+      toast({
+        title: "Falta resultado de visita",
+        description: "Selecciona una opción o escribe un resultado personalizado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (visitResultPreset === "personalizado" && !visitResultCustom.trim()) {
+      toast({
+        title: "Texto requerido",
+        description: "Escribe el resultado personalizado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const res = await fetch(`/api/dos-pinos/cases/${id}`, {
@@ -61,7 +95,7 @@ export default function CaseReportPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eyanStatus: resultado,
-          movementType: movementType || undefined,
+          movementType,
           tipoEquipo: tipoEquipo || undefined,
           lugarDeCarga: lugarDeCarga || undefined,
           distanciaPDV: distanciaPDV || undefined,
@@ -152,7 +186,7 @@ export default function CaseReportPage() {
             {caseData.eyanStatus === "completed" ? "Completado" : "Fallido"}
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] mb-3">
-            <Detail label="Tipo Movimiento" value={caseData.movementType ?? "—"} />
+            <Detail label="Resultado visita" value={caseData.movementType ?? "—"} />
             <Detail label="Tipo Equipo" value={caseData.tipoEquipo ?? "—"} />
             <Detail label="Lugar de carga" value={caseData.lugarDeCarga ?? "—"} />
             <Detail label="Distancia PDV" value={caseData.distanciaPDV ?? "—"} />
@@ -206,12 +240,11 @@ export default function CaseReportPage() {
 
           {/* Datos del Excel */}
           <div className="rounded-lg p-4 grid grid-cols-2 gap-3" style={{ backgroundColor: "var(--color-surface)" }}>
-            <FieldText
-              label="Tipo de Movimiento"
-              value={movementType}
-              onChange={setMovementType}
-              placeholder="Implementación Exitosa, Equipo Reemplazado..."
-              full
+            <FieldVisitResult
+              preset={visitResultPreset}
+              customText={visitResultCustom}
+              onPresetChange={setVisitResultPreset}
+              onCustomChange={setVisitResultCustom}
             />
             <FieldText
               label="Tipo de Equipo"
@@ -281,6 +314,46 @@ function Detail({
         {label}
       </span>
       <p className="text-foreground mt-0.5">{value || "—"}</p>
+    </div>
+  );
+}
+
+function FieldVisitResult({
+  preset,
+  customText,
+  onPresetChange,
+  onCustomChange,
+}: {
+  preset: string;
+  customText: string;
+  onPresetChange: (v: string) => void;
+  onCustomChange: (v: string) => void;
+}) {
+  return (
+    <div className="col-span-2 space-y-2">
+      <label className="text-[10px] font-heading font-600 uppercase tracking-widest text-muted-foreground block">
+        Resultado visita
+      </label>
+      <Select value={preset || undefined} onValueChange={onPresetChange}>
+        <SelectTrigger className="h-9 text-[13px]">
+          <SelectValue placeholder="Seleccionar resultado..." />
+        </SelectTrigger>
+        <SelectContent>
+          {VISIT_RESULT_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value} className="text-[13px]">
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {preset === "personalizado" && (
+        <Input
+          value={customText}
+          onChange={(e) => onCustomChange(e.target.value)}
+          placeholder="Describe el resultado de la visita..."
+          className="h-9 text-[13px]"
+        />
+      )}
     </div>
   );
 }

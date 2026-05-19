@@ -147,7 +147,7 @@ export default function RutaDetailPage() {
               </div>
 
               <div className="case-grid">
-                <Field label="Tipo Movimiento" value={c.movementType} />
+                <Field label="Resultado visita" value={c.movementType} />
                 <Field label="Tipo Equipo" value={c.tipoEquipo} />
                 <Field label="Lugar de carga" value={c.lugarDeCarga} />
                 <Field label="Distancia PDV" value={c.distanciaPDV} />
