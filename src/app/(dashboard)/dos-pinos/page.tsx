@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { AssignDriverModal } from "@/components/dos-pinos/AssignDriverModal";
+import { sfStatusStyle } from "@/constants/dos-pinos-report";
 import type { DosPinosCasePopulated, DPCaseStatus } from "@/types";
 
 /* ── Status meta ─────────────────────────────────────────── */
@@ -36,14 +37,6 @@ const STATUS_META: Record<
   in_progress: { label: "En ruta",    dot: "bg-orange-400",   text: "text-orange-400"   },
   completed:   { label: "Completado", dot: "bg-emerald-400",  text: "text-emerald-400"  },
   failed:      { label: "Fallido",    dot: "bg-red-400",      text: "text-red-400"      },
-};
-
-const SF_STATUS_STYLE: Record<string, string> = {
-  "Para entrega":   "bg-blue-500/15 text-blue-300",
-  "Para Reemplazo": "bg-violet-500/15 text-violet-300",
-  "Para reemplazo": "bg-violet-500/15 text-violet-300",
-  "En ruta":        "bg-orange-500/15 text-orange-300",
-  "Completado":     "bg-emerald-500/15 text-emerald-300",
 };
 
 /* ── Helpers ─────────────────────────────────────────────── */
@@ -316,7 +309,7 @@ export default function DosPinosCasesPage() {
               const driverName = getDriverName(c.assignedDriverId);
               const driverId = getDriverId(c.assignedDriverId);
               const canAssign = c.eyanStatus !== "completed" && c.eyanStatus !== "failed";
-              const sfStyle = SF_STATUS_STYLE[c.sfStatus] ?? "bg-muted text-muted-foreground";
+              const sfStyle = sfStatusStyle(c.sfStatus);
 
               return (
                 <div

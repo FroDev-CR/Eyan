@@ -29,6 +29,7 @@ import {
   GripVertical,
   Flag,
 } from "lucide-react";
+import { sfStatusStyle } from "@/constants/dos-pinos-report";
 import type { DosPinosCase, DPCaseStatus } from "@/types";
 
 const STATUS_META: Record<DPCaseStatus, { label: string; dot: string; text: string }> = {
@@ -91,6 +92,15 @@ function SortableCaseRow({ c, index }: { c: DosPinosCase; index: number }) {
           <span className={`text-[11px] font-medium ${meta.text}`}>
             {meta.label}
           </span>
+          {c.sfStatus && (
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${sfStatusStyle(
+                c.sfStatus
+              )}`}
+            >
+              {c.sfStatus}
+            </span>
+          )}
         </div>
         <p className="text-[14px] font-medium text-foreground mt-0.5 truncate">
           {c.commercialName}
@@ -98,6 +108,16 @@ function SortableCaseRow({ c, index }: { c: DosPinosCase; index: number }) {
         <div className="flex items-center gap-1 text-[12px] text-muted-foreground mt-0.5">
           <MapPin className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">{c.clientAddress}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+          {c.linkedAssetNumber ? (
+            <span className="font-mono">
+              Activo {c.linkedAssetNumber}
+            </span>
+          ) : null}
+          {c.sfStatus2 && (
+            <span className="truncate">Equipo: {c.sfStatus2}</span>
+          )}
         </div>
       </div>
 
@@ -134,10 +154,27 @@ function DoneCaseRow({ c }: { c: DosPinosCase }) {
           <span className={`text-[11px] font-medium ${meta.text}`}>
             {meta.label}
           </span>
+          {c.sfStatus && (
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${sfStatusStyle(
+                c.sfStatus
+              )}`}
+            >
+              {c.sfStatus}
+            </span>
+          )}
         </div>
         <p className="text-[14px] font-medium text-foreground mt-0.5 truncate">
           {c.commercialName}
         </p>
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+          {c.linkedAssetNumber ? (
+            <span className="font-mono">Activo {c.linkedAssetNumber}</span>
+          ) : null}
+          {c.sfStatus2 && (
+            <span className="truncate">Equipo: {c.sfStatus2}</span>
+          )}
+        </div>
       </div>
       <Button size="sm" variant="outline" className="h-8 text-[12px]" asChild>
         <Link href={`/dos-pinos/${c._id}/reporte`}>Ver reporte</Link>

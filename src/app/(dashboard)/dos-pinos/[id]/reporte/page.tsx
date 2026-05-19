@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import {
   VISIT_RESULT_OPTIONS,
+  DISTANCIA_OPTIONS,
+  EQUIPO_TIPO_BASE,
   parseStoredVisitResult,
   resolveVisitResultValue,
 } from "@/constants/dos-pinos-report";
@@ -44,6 +46,41 @@ export default function CaseReportPage() {
   const [distanciaPDV, setDistanciaPDV] = useState("");
   const [comentarioAdicional, setComentarioAdicional] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [equipoOptions, setEquipoOptions] = useState<string[]>([
+    ...EQUIPO_TIPO_BASE,
+  ]);
+
+  useEffect(() => {
+    fetch("/api/dos-pinos/equipo-options")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && Array.isArray(j.data)) setEquipoOptions(j.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleAddEquipo = async (value: string): Promise<boolean> => {
+    const v = value.trim();
+    if (!v) return false;
+    try {
+      const res = await fetch("/api/dos-pinos/equipo-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: v }),
+      });
+      const j = await res.json();
+      if (j.success && Array.isArray(j.data)) {
+        setEquipoOptions(j.data);
+        setTipoEquipo(v);
+        return true;
+      }
+      toast({ title: "Error", description: j.error, variant: "destructive" });
+      return false;
+    } catch {
+      toast({ title: "Error de conexión", variant: "destructive" });
+      return false;
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/dos-pinos/cases/${id}`)
@@ -188,7 +225,7 @@ export default function CaseReportPage() {
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] mb-3">
             <Detail label="Resultado visita" value={caseData.movementType ?? "—"} />
             <Detail label="Tipo Equipo" value={caseData.tipoEquipo ?? "—"} />
-            <Detail label="Lugar de carga" value={caseData.lugarDeCarga ?? "—"} />
+            <Detail label="Sucursal" value={caseData.lugarDeCarga ?? "—"} />
             <Detail label="Distancia PDV" value={caseData.distanciaPDV ?? "—"} />
           </div>
           {(caseData.comentarioAdicional || caseData.notes) && (
@@ -246,23 +283,24 @@ export default function CaseReportPage() {
               onPresetChange={setVisitResultPreset}
               onCustomChange={setVisitResultCustom}
             />
-            <FieldText
-              label="Tipo de Equipo"
+            <FieldEquipoTipo
               value={tipoEquipo}
+              options={equipoOptions}
               onChange={setTipoEquipo}
-              placeholder="1 PUERTA, 2 PUERTAS, PALETERA, FREEZZ-9..."
+              onAdd={handleAddEquipo}
             />
             <FieldText
-              label="Lugar de carga"
+              label="Sucursal"
               value={lugarDeCarga}
               onChange={setLugarDeCarga}
               placeholder="RIO CLARO..."
             />
-            <FieldText
+            <FieldSelect
               label="Distancia del PDV"
               value={distanciaPDV}
               onChange={setDistanciaPDV}
-              placeholder="+ de 30 KMS / - de 30 KMS"
+              options={DISTANCIA_OPTIONS as readonly string[]}
+              placeholder="Seleccionar distancia..."
               full
             />
           </div>
@@ -382,6 +420,146 @@ function FieldText({
         placeholder={placeholder}
         className="h-9 text-[13px]"
       />
+    </div>
+  );
+}
+
+const ADD_SENTINEL = "__add_categoria__";
+
+function FieldEquipoTipo({
+  value,
+  options,
+  onChange,
+  onAdd,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  onAdd: (v: string) => Promise<boolean>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Valor guardado que no está en la lista (legacy texto libre): mostrarlo igual
+  const allOptions =
+    value && !options.includes(value) ? [value, ...options] : options;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const ok = await onAdd(draft);
+    setSaving(false);
+    if (ok) {
+      setDraft("");
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div>
+      <label className="text-[10px] font-heading font-600 uppercase tracking-widest text-muted-foreground block mb-1.5">
+        Tipo de Equipo
+      </label>
+      {adding ? (
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Nueva categoría..."
+            className="h-9 text-[13px]"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-9"
+            disabled={saving || !draft.trim()}
+            onClick={handleSave}
+          >
+            {saving ? "..." : "Guardar"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-9"
+            onClick={() => setAdding(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      ) : (
+        <Select
+          value={value || undefined}
+          onValueChange={(v) => {
+            if (v === ADD_SENTINEL) {
+              setAdding(true);
+              return;
+            }
+            onChange(v);
+          }}
+        >
+          <SelectTrigger className="h-9 text-[13px]">
+            <SelectValue placeholder="Seleccionar tipo..." />
+          </SelectTrigger>
+          <SelectContent>
+            {allOptions.map((opt) => (
+              <SelectItem key={opt} value={opt} className="text-[13px]">
+                {opt}
+              </SelectItem>
+            ))}
+            <SelectItem
+              value={ADD_SENTINEL}
+              className="text-[13px] text-primary"
+            >
+              + Añadir categoría
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
+function FieldSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  full,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly string[];
+  placeholder?: string;
+  full?: boolean;
+}) {
+  // Valor legacy fuera de la lista: mostrarlo igual
+  const allOptions =
+    value && !options.includes(value) ? [value, ...options] : [...options];
+  return (
+    <div className={full ? "col-span-2" : ""}>
+      <label className="text-[10px] font-heading font-600 uppercase tracking-widest text-muted-foreground block mb-1.5">
+        {label}
+      </label>
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger className="h-9 text-[13px]">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {allOptions.map((opt) => (
+            <SelectItem key={opt} value={opt} className="text-[13px]">
+              {opt}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
