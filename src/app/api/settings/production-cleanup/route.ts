@@ -42,13 +42,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (cleanCoordinators) {
-    const driverUsers = await User.find({ role: "driver" }).select("_id driverId");
-    const driverIds = driverUsers.map((u) => u.driverId).filter(Boolean);
-
     const usersResult = await User.deleteMany({ role: "driver" });
     const driversResult = await Driver.deleteMany({});
     const unassigned = await DosPinosCase.updateMany(
-      { assignedDriverId: { $in: driverIds } },
+      { assignedDriverId: { $exists: true, $ne: null } },
       { $set: { assignedDriverId: null } }
     );
 
