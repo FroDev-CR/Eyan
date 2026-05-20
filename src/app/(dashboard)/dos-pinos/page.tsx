@@ -19,7 +19,6 @@ import {
   ClipboardList,
   RefreshCw,
   UserPlus,
-  Trash2,
   MapPin,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
@@ -80,7 +79,6 @@ export default function DosPinosCasesPage() {
   const [batches, setBatches] = useState<string[]>([]);
   const [zones, setZones] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
   const [assignModal, setAssignModal] = useState<{
     caseId: string;
     caseNumber: number;
@@ -109,33 +107,6 @@ export default function DosPinosCasesPage() {
   }, [search, status, zone, batch]);
 
   useEffect(() => { fetchCases(); }, [fetchCases]);
-
-  const handleReset = async () => {
-    if (
-      !confirm(
-        "⚠️ Esto eliminará TODOS los casos y rutas finalizadas de Dos Pinos. ¿Continuar?"
-      )
-    )
-      return;
-    if (!confirm("Confirmación final: ¿estás 100% seguro? Esta acción no se puede deshacer.")) return;
-
-    setIsResetting(true);
-    try {
-      const res = await fetch("/api/dos-pinos/reset", { method: "POST" });
-      const json = await res.json();
-      if (json.success) {
-        toast({
-          title: "Datos eliminados",
-          description: `${json.data.casesDeleted} casos · ${json.data.routesDeleted} rutas`,
-        });
-        fetchCases();
-      } else {
-        toast({ title: "Error", description: json.error, variant: "destructive" });
-      }
-    } finally {
-      setIsResetting(false);
-    }
-  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -183,18 +154,6 @@ export default function DosPinosCasesPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          {cases.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              disabled={isResetting}
-              className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30"
-            >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              {isResetting ? "Limpiando..." : "Limpiar todo"}
-            </Button>
-          )}
           <Button
             variant="outline"
             size="sm"

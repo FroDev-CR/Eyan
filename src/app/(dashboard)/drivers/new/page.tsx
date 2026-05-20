@@ -1,14 +1,13 @@
-import { PageHeader } from "@/components/shared/PageHeader";
-import { DriverForm } from "@/components/drivers/DriverForm";
+"use client";
 
-export default function NewDriverPage() {
-  return (
-    <div className="max-w-2xl">
-      <PageHeader
-        title="Nuevo Coordinador"
-        description="Agrega un nuevo coordinador al sistema"
-      />
-      <DriverForm />
-    </div>
-  );
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { LoadingPage } from "@/components/shared/LoadingSpinner";
+
+export default function NewDriverRedirectPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/settings?tab=coordinadores");
+  }, [router]);
+  return <LoadingPage />;
 }

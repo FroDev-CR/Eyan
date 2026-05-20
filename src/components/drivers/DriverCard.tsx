@@ -19,9 +19,10 @@ import { MoreVertical, Pencil, Trash2, Phone, Mail, CreditCard } from "lucide-re
 interface DriverCardProps {
   driver: Driver;
   onDelete?: (driver: Driver) => void;
+  readOnly?: boolean;
 }
 
-export function DriverCard({ driver, onDelete }: DriverCardProps) {
+export function DriverCard({ driver, onDelete, readOnly }: DriverCardProps) {
   const fullName = `${driver.firstName} ${driver.lastName}`;
   const initials = getInitials(fullName);
   const avatarColor = stringToColor(fullName);
@@ -37,12 +38,7 @@ export function DriverCard({ driver, onDelete }: DriverCardProps) {
               </AvatarFallback>
             </Avatar>
             <div>
-              <Link
-                href={`/drivers/${driver._id}`}
-                className="font-semibold hover:text-primary transition-colors"
-              >
-                {fullName}
-              </Link>
+              <span className="font-semibold">{fullName}</span>
               <Badge
                 variant={driverStatusVariants[driver.status]}
                 className="ml-2"
@@ -52,28 +48,30 @@ export function DriverCard({ driver, onDelete }: DriverCardProps) {
             </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/drivers/${driver._id}`}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Editar
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete?.(driver)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/settings?tab=coordinadores`}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => onDelete?.(driver)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div className="mt-4 space-y-2 text-sm text-muted-foreground">

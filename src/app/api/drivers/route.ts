@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import Driver from "@/models/Driver";
-import { driverSchema, validateData } from "@/lib/validations";
 
 // GET /api/drivers - Listar todos los coordinadores
 export async function GET(request: NextRequest) {
@@ -38,47 +39,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/drivers - Crear nuevo coordinador
-export async function POST(request: NextRequest) {
-  try {
-    await dbConnect();
-
-    const body = await request.json();
-    const validation = validateData(driverSchema, body);
-
-    if (!validation.success) {
-      return NextResponse.json(
-        { success: false, error: validation.error },
-        { status: 400 }
-      );
-    }
-
-    // Verificar si ya existe un coordinador con el mismo email o licencia
-    const existing = await Driver.findOne({
-      $or: [
-        { email: validation.data.email },
-        { licenseNumber: validation.data.licenseNumber },
-      ],
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: "Ya existe un coordinador con ese email o número de licencia" },
-        { status: 400 }
-      );
-    }
-
-    const driver = await Driver.create(validation.data);
-
-    return NextResponse.json(
-      { success: true, data: driver },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("Error al crear coordinador:", error);
-    return NextResponse.json(
-      { success: false, error: "Error al crear coordinador" },
-      { status: 500 }
-    );
+// POST /api/drivers — deshabilitado; usar /api/settings/coordinators
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== "admin") {
+    return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
   }
+
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Usa Configuración → Coordinadores para dar de alta coordinadores con acceso @eyan.com",
+    },
+    { status: 400 }
+  );
 }

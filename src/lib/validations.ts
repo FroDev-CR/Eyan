@@ -80,6 +80,33 @@ export const userSchema = z.object({
 
 export type UserFormSchema = z.infer<typeof userSchema>;
 
+const emailLocalSchema = z
+  .string()
+  .min(1, "Usuario de correo requerido")
+  .max(64)
+  .regex(/^[a-z0-9._-]+$/i, "Solo letras, números, punto, guion y guion bajo");
+
+/** Coordinador Dos Pinos — alta desde Configuración (admin) */
+export const coordinatorCreateSchema = z.object({
+  firstName: z.string().min(2, "Nombre debe tener al menos 2 caracteres").max(50),
+  lastName: z.string().min(2, "Apellido debe tener al menos 2 caracteres").max(50),
+  phone: phoneSchema,
+  emailLocal: emailLocalSchema,
+  password: z.string().min(6, "Contraseña debe tener al menos 6 caracteres"),
+});
+
+export const coordinatorUpdateSchema = z.object({
+  firstName: z.string().min(2).max(50).optional(),
+  lastName: z.string().min(2).max(50).optional(),
+  phone: phoneSchema.optional(),
+  emailLocal: emailLocalSchema.optional(),
+  password: z.string().min(6).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type CoordinatorCreateSchema = z.infer<typeof coordinatorCreateSchema>;
+export type CoordinatorUpdateSchema = z.infer<typeof coordinatorUpdateSchema>;
+
 // Función helper para validar datos
 export function validateData<T>(schema: z.ZodSchema<T>, data: unknown): { success: true; data: T } | { success: false; error: string } {
   const result = schema.safeParse(data);

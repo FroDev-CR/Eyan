@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { SearchInput } from "@/components/shared/SearchInput";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingPage } from "@/components/shared/LoadingSpinner";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DriverCard } from "@/components/drivers/DriverCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,47 +15,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDrivers, useDriverMutations } from "@/hooks/useDrivers";
-import { useToast } from "@/hooks/useToast";
+import { useDrivers } from "@/hooks/useDrivers";
 import { driverStatusLabels } from "@/constants/status";
-import type { Driver } from "@/types";
-import { Plus, Users } from "lucide-react";
+import { Settings, Users } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function DriversPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    driver: Driver | null;
-  }>({ open: false, driver: null });
-
-  const { drivers, isLoading, refetch } = useDrivers({
+  const { drivers, isLoading } = useDrivers({
     search,
     status: status !== "all" ? status : undefined,
   });
-  const { deleteDriver, isLoading: isDeleting } = useDriverMutations();
-  const { toast } = useToast();
-
-  const handleDelete = async () => {
-    if (!deleteDialog.driver) return;
-
-    const result = await deleteDriver(deleteDialog.driver._id);
-    if (result.success) {
-      toast({
-        title: "Coordinador eliminado",
-        description: `${deleteDialog.driver.firstName} ${deleteDialog.driver.lastName} ha sido eliminado.`,
-      });
-      setDeleteDialog({ open: false, driver: null });
-      refetch();
-    } else {
-      toast({
-        title: "Error",
-        description: result.error || "No se pudo eliminar el coordinador",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (isLoading) {
     return <LoadingPage />;
   }
@@ -65,16 +35,26 @@ export default function DriversPage() {
     <div>
       <PageHeader
         title="Coordinadores"
-        description={`${drivers.length} coordinadores registrados`}
+        description={`${drivers.length} coordinadores registrados — solo lectura`}
         actions={
-          <Button asChild>
-            <Link href="/drivers/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Coordinador
+          <Button asChild variant="outline">
+            <Link href="/settings?tab=coordinadores">
+              <Settings className="mr-2 h-4 w-4" />
+              Gestionar en Configuración
             </Link>
           </Button>
         }
       />
+
+      <Card className="mb-6 border-primary/20 bg-primary/5">
+        <CardContent className="py-3 text-sm text-muted-foreground">
+          Crear, editar contraseñas y eliminar coordinadores solo desde{" "}
+          <Link href="/settings?tab=coordinadores" className="text-primary hover:underline font-medium">
+            Configuración → Coordinadores
+          </Link>
+          .
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -112,9 +92,9 @@ export default function DriversPage() {
           action={
             !search && status === "all" && (
               <Button asChild>
-                <Link href="/drivers/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Agregar Coordinador
+                <Link href="/settings?tab=coordinadores">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Ir a Configuración
                 </Link>
               </Button>
             )
@@ -123,28 +103,11 @@ export default function DriversPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {drivers.map((driver) => (
-            <DriverCard
-              key={driver._id}
-              driver={driver}
-              onDelete={(d) => setDeleteDialog({ open: true, driver: d })}
-            />
+            <DriverCard key={driver._id} driver={driver} readOnly />
           ))}
         </div>
       )}
 
-      {/* Dialog de confirmación de eliminación */}
-      <ConfirmDialog
-        open={deleteDialog.open}
-        onOpenChange={(open) =>
-          setDeleteDialog({ open, driver: open ? deleteDialog.driver : null })
-        }
-        title="Eliminar coordinador"
-        description={`¿Estás seguro de que deseas eliminar a ${deleteDialog.driver?.firstName} ${deleteDialog.driver?.lastName}? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        variant="destructive"
-        isLoading={isDeleting}
-        onConfirm={handleDelete}
-      />
     </div>
   );
 }

@@ -53,7 +53,7 @@ export const navigation: NavSection[] = [
     items: [
       {
         title: "Coordinadores",
-        href: "/drivers",
+        href: "/settings?tab=coordinadores",
         icon: Users,
         roles: ["admin"],
       },

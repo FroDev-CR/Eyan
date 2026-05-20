@@ -1,11 +1,14 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { SettingsCoordinatorsTab } from "@/components/settings/SettingsCoordinatorsTab";
+import { SettingsProductionTab } from "@/components/settings/SettingsProductionTab";
 import {
   Select,
   SelectContent,
@@ -24,6 +27,8 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
+  Users,
+  Rocket,
 } from "lucide-react";
 import { EXPENSE_CATEGORY_RULES } from "@/lib/contabilidad/expense-category-rules";
 
@@ -36,9 +41,21 @@ interface QBOStatus {
   refreshExpired?: boolean;
 }
 
+const SETTINGS_TABS = ["qbo", "coordinadores", "produccion"] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
 function SettingsInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { toast } = useToast();
+  const tabParam = searchParams.get("tab");
+  const activeTab: SettingsTab = SETTINGS_TABS.includes(tabParam as SettingsTab)
+    ? (tabParam as SettingsTab)
+    : "qbo";
+
+  const setTab = (tab: SettingsTab) => {
+    router.replace(`/settings?tab=${tab}`);
+  };
   const [qboStatus, setQboStatus] = useState<QBOStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [syncingCategories, setSyncingCategories] = useState(false);
@@ -167,9 +184,31 @@ function SettingsInner() {
     <div>
       <PageHeader
         title="Configuración"
-        description="Conexión con QuickBooks y sincronización de datos"
+        description="QuickBooks, coordinadores Dos Pinos y preparación para producción"
       />
 
+      <Tabs value={activeTab} onValueChange={(v) => setTab(v as SettingsTab)} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="qbo">QuickBooks</TabsTrigger>
+          <TabsTrigger value="coordinadores" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            Coordinadores
+          </TabsTrigger>
+          <TabsTrigger value="produccion" className="gap-1.5">
+            <Rocket className="h-3.5 w-3.5" />
+            Producción
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="coordinadores">
+          <SettingsCoordinatorsTab />
+        </TabsContent>
+
+        <TabsContent value="produccion">
+          <SettingsProductionTab />
+        </TabsContent>
+
+        <TabsContent value="qbo">
       <div className="grid gap-6 max-w-2xl">
         {/* QuickBooks Online */}
         <Card>
@@ -361,6 +400,8 @@ function SettingsInner() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
